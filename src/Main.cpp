@@ -23,7 +23,7 @@ struct Waves : public Vision::App
   Vision::Mesh* planeMesh;
   Vision::Shader* waveShader;
 
-  Wave wave;
+  Wave waves[10];
   Vision::Buffer* waveBuffer;
 
   Waves()
@@ -35,21 +35,25 @@ struct Waves : public Vision::App
     waveShader = new Vision::Shader("resources/waveShader.glsl");
 
     // generate wave (manually for now)
-    glm::vec2 origin = { 0.0f, 0.0f };
-    glm::vec2 direction = glm::circularRand(1.0f);
-    float amplitude = 1.0f;
-    float wavelength = 2.0f;
-    float angularFrequency = 10.0f;
-    float phase = 0.0f;
-    wave.OriginDir = { origin, direction };
-    wave.Scale = { amplitude, wavelength, angularFrequency, phase };
+    srand(time(nullptr));
+    for (int i = 0; i < 10; i++)
+    {
+      glm::vec2 origin = { 0.0f, 0.0f };
+      glm::vec2 direction = glm::circularRand(1.0f);
+      float amplitude = 1.0f;
+      float wavelength = 2.0f;
+      float angularFrequency = 10.0f;
+      float phase = 0.0f;
+      waves[i].OriginDir = { origin, direction };
+      waves[i].Scale = { amplitude, wavelength, angularFrequency, phase };
+    }
 
     // upload to shader
     Vision::BufferDesc desc;
     desc.Type = GL_UNIFORM_BUFFER;
     desc.Usage = GL_STATIC_DRAW;
-    desc.Size = sizeof(Wave);
-    desc.Data = &wave;
+    desc.Size = sizeof(Wave) * 10;
+    desc.Data = waves;
     waveBuffer = new Vision::Buffer(desc);
 
     waveShader->Use();

@@ -15,22 +15,26 @@ uniform float u_Time;
 
 layout (std140) uniform WaveProperties
 {
-  Wave wave;
+  Wave waves[10];
 } waves; 
 
 void main()
 {
-  Wave wave = waves.wave;
   vec3 pos = a_Pos.xzy; // swap y and z direction to rotate plane
+  
+  for (int i = 0; i < 10; i++)
+  {
+    Wave wave = waves.waves[i];
 
-  // calculate the distance with respect to the direction of the wave.
-  vec2 displacement = pos.xz - wave.origin;
-  float dist = dot(displacement, wave.direction);
+    // calculate the distance with respect to the direction of the wave.
+    vec2 displacement = pos.xz - wave.origin;
+    float dist = dot(displacement, wave.direction);
 
-  // determine the height offset using general sinusoid equation
-  float waveNumber = 6.283185307 / wave.scale.y; // wave number = 2 * PI / wavelength
-  float heightOffset = wave.scale.x * sin(waveNumber * dist - wave.scale.z * u_Time + wave.scale.w);
-  pos.y += heightOffset;
+    // determine the height offset using general sinusoid equation
+    float waveNumber = 6.283185307 / wave.scale.y; // wave number = 2 * PI / wavelength
+    float heightOffset = wave.scale.x * sin(waveNumber * dist - wave.scale.z * u_Time + wave.scale.w);
+    pos.y += heightOffset;
+  }
   
   // project from 3D space to 2D
   gl_Position = u_ViewProjection * vec4(pos, 1.0);
