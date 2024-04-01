@@ -31,7 +31,7 @@ struct Waves : public Vision::App
     renderer = new Vision::Renderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
     camera = new Vision::PerspectiveCamera(m_DisplayWidth, m_DisplayHeight);
 
-    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 50, 50);
+    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 100, 100);
     waveShader = new Vision::Shader("resources/waveShader.glsl");
 
     // generate wave (manually for now)
@@ -40,9 +40,9 @@ struct Waves : public Vision::App
     {
       glm::vec2 origin = { 0.0f, 0.0f };
       glm::vec2 direction = glm::circularRand(1.0f);
-      float amplitude = 1.0f;
+      float amplitude = 0.3f;
       float wavelength = 2.0f;
-      float angularFrequency = 10.0f;
+      float angularFrequency = 1.0f;
       float phase = 0.0f;
       waves[i].OriginDir = { origin, direction };
       waves[i].Scale = { amplitude, wavelength, angularFrequency, phase };
