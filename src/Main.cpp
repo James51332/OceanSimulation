@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/random.hpp>
 
 #include "renderer/Renderer.h"
 #include "renderer/MeshGenerator.h"
@@ -22,6 +23,9 @@ struct Waves : public Vision::App
   Vision::Mesh* planeMesh;
   Vision::Shader* waveShader;
 
+  Wave wave;
+  Vision::Buffer* waveBuffer;
+
   Waves()
   {
     renderer = new Vision::Renderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
@@ -29,6 +33,27 @@ struct Waves : public Vision::App
 
     planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 50, 50);
     waveShader = new Vision::Shader("resources/waveShader.glsl");
+
+    // generate wave (manually for now)
+    glm::vec2 origin = { 0.0f, 0.0f };
+    glm::vec2 direction = glm::circularRand(1.0f);
+    float amplitude = 1.0f;
+    float wavelength = 2.0f;
+    float angularFrequency = 10.0f;
+    float phase = 0.0f;
+    wave.OriginDir = { origin, direction };
+    wave.Scale = { amplitude, wavelength, angularFrequency, phase };
+
+    // upload to shader
+    Vision::BufferDesc desc;
+    desc.Type = GL_UNIFORM_BUFFER;
+    desc.Usage = GL_STATIC_DRAW;
+    desc.Size = sizeof(Wave);
+    desc.Data = &wave;
+    waveBuffer = new Vision::Buffer(desc);
+
+    waveShader->Use();
+    waveShader->SetUniformBlock(waveBuffer, "WaveProperties", 0);
   }
 
   ~Waves()
@@ -38,6 +63,7 @@ struct Waves : public Vision::App
 
     delete planeMesh;
     delete waveShader;
+    delete waveBuffer;
   }
 
   void OnUpdate(float timestep)
