@@ -4,21 +4,28 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/random.hpp>
 
+#include <imgui.h>
+
 #include "renderer/Renderer.h"
 #include "renderer/MeshGenerator.h"
 
 struct Wave
 {
-  // Origin (x, y); Direction (z, w)
-  glm::vec4 OriginDir;
+  // Origin & Direction
+  glm::vec2 Origin;
+  glm::vec2 Direction;
 
-  // Amplitude: (x); Wavelength (y); Angular Frequency (z); Phase (w)
-  glm::vec4 Scale;
+  // Other Properties
+  float Amplitude;
+  float Wavelength;
+  float AngularFrequency;
+  float Phase;
 };
 
 struct Waves : public Vision::App
 {
   Vision::Renderer* renderer;
+  Vision::ImGuiRenderer* uiRenderer;
   Vision::PerspectiveCamera* camera;
   Vision::Mesh* planeMesh;
   Vision::Shader* waveShader;
@@ -29,35 +36,24 @@ struct Waves : public Vision::App
   Waves()
   {
     renderer = new Vision::Renderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
+    uiRenderer = new Vision::ImGuiRenderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
     camera = new Vision::PerspectiveCamera(m_DisplayWidth, m_DisplayHeight);
 
     planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 100, 100);
     waveShader = new Vision::Shader("resources/waveShader.glsl");
 
-    // generate wave (manually for now)
+    // generate waves (manually for now)
     srand(time(nullptr));
-    for (int i = 0; i < 10; i++)
-    {
-      glm::vec2 origin = { 0.0f, 0.0f };
-      glm::vec2 direction = glm::circularRand(1.0f);
-      float amplitude = 0.3f;
-      float wavelength = 2.0f;
-      float angularFrequency = 1.0f;
-      float phase = 0.0f;
-      waves[i].OriginDir = { origin, direction };
-      waves[i].Scale = { amplitude, wavelength, angularFrequency, phase };
-    }
 
-    // upload to shader
+    // create wave uniform buffers
     Vision::BufferDesc desc;
     desc.Type = GL_UNIFORM_BUFFER;
     desc.Usage = GL_STATIC_DRAW;
     desc.Size = sizeof(Wave) * 10;
-    desc.Data = waves;
+    desc.Data = nullptr;
     waveBuffer = new Vision::Buffer(desc);
 
-    waveShader->Use();
-    waveShader->SetUniformBlock(waveBuffer, "WaveProperties", 0);
+    GenerateWaves();
   }
 
   ~Waves()
@@ -70,6 +66,41 @@ struct Waves : public Vision::App
     delete waveBuffer;
   }
 
+  float wavelength = 5.0f;
+  float amplitude = 0.10f;
+  float angularFrequency = 1.5f;
+  float freqDamp = 1.6f;
+  float lengthDamp = 0.75f;
+  float ampDamp = 0.5f;
+
+  void GenerateWaves()
+  {
+    float curFreq = angularFrequency;
+    float curAmp = amplitude;
+    float curLength = wavelength;
+
+    for (int i = 0; i < 10; i++)
+    {
+      waves[i].Origin = glm::linearRand(glm::vec2(-1.0f), glm::vec2(1.0f));
+      waves[i].Direction = glm::circularRand(1.0f);
+
+      waves[i].Phase = glm::linearRand(0.0f, 6.28f);
+
+      waves[i].AngularFrequency = curFreq;
+      waves[i].Amplitude = curAmp;
+      waves[i].Wavelength = curLength;
+
+      curFreq *= freqDamp;
+      curAmp *= ampDamp;
+      curLength *= lengthDamp;
+    }
+
+    waveBuffer->SetData(waves, sizeof(Wave) * 10);
+
+    waveShader->Use();
+    waveShader->SetUniformBlock(waveBuffer, "WaveProperties", 0);
+  }
+
   void OnUpdate(float timestep)
   {
     camera->Update(timestep);
@@ -80,11 +111,37 @@ struct Waves : public Vision::App
     renderer->Begin(camera);
     renderer->DrawMesh(planeMesh, waveShader);
     renderer->End();
+
+    DrawUI();
+  }
+
+  void DrawUI()
+  {
+    uiRenderer->Begin();
+    if (ImGui::Begin("Settings"))
+    {
+      ImGui::PushItemWidth(0.4f * ImGui::GetWindowWidth());
+      bool changed = false;
+      changed |= ImGui::DragFloat("Wavelength", &wavelength, 0.003f);
+      changed |= ImGui::DragFloat("Amplitude", &amplitude, 0.003f);
+      changed |= ImGui::DragFloat("Frequency", &angularFrequency, 0.003f);
+      changed |= ImGui::DragFloat("Freq. Dampening", &freqDamp, 0.003f);
+      changed |= ImGui::DragFloat("Length Dampening", &lengthDamp, 0.003f);
+      changed |= ImGui::DragFloat("Amp. Damp", &ampDamp, 0.003f);
+
+      if (changed)
+        GenerateWaves();
+
+      ImGui::PopItemWidth();
+    }
+    ImGui::End();
+    uiRenderer->End();
   }
 
   void OnResize()
   {
     renderer->Resize(m_DisplayWidth, m_DisplayHeight);
+    uiRenderer->Resize(m_DisplayWidth, m_DisplayHeight);
   }
 };
 

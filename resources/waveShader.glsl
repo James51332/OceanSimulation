@@ -7,7 +7,11 @@ struct Wave
 {
   vec2 origin;
   vec2 direction;
-  vec4 scale; // amplitude, wavelength, angular freq., phase 
+
+  float amplitude; 
+  float wavelength;
+  float angularFrequency;
+  float phase;
 };
 
 uniform mat4 u_ViewProjection;
@@ -28,7 +32,7 @@ void main()
   float partialX = 0;
   float partialZ = 0;
 
-  for (int i = 0; i < 1; i++)
+  for (int i = 0; i < 5; i++)
   {
     Wave wave = waves[i];
 
@@ -37,14 +41,14 @@ void main()
     float dist = dot(displacement, wave.direction);
 
     // determine the height offset using general sinusoid equation
-    float waveNumber = 6.283185307 / wave.scale.y; // wave number = 2 * PI / wavelength
-    float waveInput = waveNumber * dist - wave.scale.z * u_Time + wave.scale.w; // store this
-    float heightOffset = wave.scale.x * sin(waveInput);
+    float waveNumber = 6.283185307 / wave.wavelength; // wave number = 2 * PI / wavelength
+    float waveInput = waveNumber * dist - wave.angularFrequency * u_Time + wave.phase; // store this
+    float heightOffset = wave.amplitude * sin(waveInput);
     pos.y += heightOffset;
 
     // calculate the partial derivatives in x and z directions
-    partialX += wave.scale.x * cos(waveInput) * wave.direction.x * waveNumber;
-    partialZ += wave.scale.x * cos(waveInput) * wave.direction.y * waveNumber;
+    partialX += wave.amplitude * cos(waveInput) * wave.direction.x * waveNumber;
+    partialZ += wave.amplitude * cos(waveInput) * wave.direction.y * waveNumber;
   }
 
   // calculate the normal vector
@@ -68,8 +72,8 @@ void main()
   vec3 lightDir = normalize(vec3(2.0, 1.0, -3.0));
 
   float diffuse = clamp(dot(normal, -lightDir), 0, 1) * 0.8;
-  float ambient = 0.4;
+  float ambient = 0.3;
 
-  vec3 color = vec3(0.53, 0.81, 0.92);
+  vec3 color = vec3(0.4, 0.6, 0.81);
   fragColor = vec4(color * (ambient + diffuse), 1.0);
 }
