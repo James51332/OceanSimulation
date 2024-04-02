@@ -30,7 +30,8 @@ struct Waves : public Vision::App
   Vision::Mesh* planeMesh;
   Vision::Shader* waveShader;
 
-  Wave waves[10];
+  constexpr static int numWaves = 10;
+  Wave waves[numWaves];
   Vision::Buffer* waveBuffer;
 
   Waves()
@@ -49,7 +50,7 @@ struct Waves : public Vision::App
     Vision::BufferDesc desc;
     desc.Type = GL_UNIFORM_BUFFER;
     desc.Usage = GL_STATIC_DRAW;
-    desc.Size = sizeof(Wave) * 10;
+    desc.Size = sizeof(Wave) * numWaves;
     desc.Data = nullptr;
     waveBuffer = new Vision::Buffer(desc);
 

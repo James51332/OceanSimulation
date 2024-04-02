@@ -22,6 +22,7 @@ layout (std140) uniform WaveProperties
   Wave waves[10];
 }; 
 
+out vec3 worldPos;
 out vec3 normal;
 
 void main()
@@ -32,7 +33,7 @@ void main()
   float partialX = 0;
   float partialZ = 0;
 
-  for (int i = 0; i < 5; i++)
+  for (int i = 0; i < 10; i++)
   {
     Wave wave = waves[i];
 
@@ -56,6 +57,9 @@ void main()
   vec3 tangent = normalize(vec3(0, 1, partialZ));
   normal = cross(binormal, tangent);
   
+  // send the world position to the fragment shader
+  worldPos = pos;
+
   // project from 3D space to 2D
   gl_Position = u_ViewProjection * vec4(pos, 1.0);
 }
@@ -63,17 +67,30 @@ void main()
 #type fragment
 #version 410 core
 
+in vec3 worldPos;
 in vec3 normal;
+
+uniform vec3 u_CameraPos;
 
 out vec4 fragColor;
 
 void main()
 {
-  vec3 lightDir = normalize(vec3(2.0, 1.0, -3.0));
+  // choose some arbitary light direction
+  vec3 lightDir = normalize(vec3(1.0, -0.2, 0.0));
 
-  float diffuse = clamp(dot(normal, -lightDir), 0, 1) * 0.8;
+  // diffuse calculation
+  float diffuseStrength = 0.4;
+  float diffuse = clamp(dot(normal, -lightDir), 0, 1) * diffuseStrength;
+
+  // specular calculation
+  float specularStrength = 0.5;
+  vec3 camDir = normalize(u_CameraPos - worldPos);
+  float specular = pow(max(dot(reflect(camDir, normal), -lightDir), 0), 32) * specularStrength;
+
+  // ambient (constant)
   float ambient = 0.3;
 
   vec3 color = vec3(0.4, 0.6, 0.81);
-  fragColor = vec4(color * (ambient + diffuse), 1.0);
+  fragColor = vec4(color * (ambient + diffuse + specular), 1.0);
 }
