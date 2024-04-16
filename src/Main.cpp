@@ -31,6 +31,10 @@ struct Waves : public Vision::App
   Vision::Mesh* planeMesh;
   Vision::Shader* waveShader;
 
+  Vision::Mesh* skyboxMesh;
+  Vision::Cubemap* skyboxTexture;
+  Vision::Shader* skyboxShader;
+
   constexpr static int numWaves = 10;
   Wave waves[numWaves];
   Vision::Buffer* waveBuffer;
@@ -44,18 +48,37 @@ struct Waves : public Vision::App
     planeMesh = Vision::MeshGenerator::CreatePlaneMesh(20.0f, 20.0f, 20, 20, true, false);
     waveShader = new Vision::Shader("resources/waveShader.glsl");
 
-    // generate waves (manually for now)
-    srand(time(nullptr));
+    skyboxMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
+    skyboxShader = new Vision::Shader("resources/skyboxShader.glsl");
+    skyboxShader->Use();
+    skyboxShader->UploadUniformInt(0, "skybox");
+    
+    Vision::CubemapDesc desc;
+    desc.Textures = {
+      "resources/skybox/bluecloud_ft.jpg",
+      "resources/skybox/bluecloud_bk.jpg",
+      "resources/skybox/bluecloud_up.jpg",
+      "resources/skybox/bluecloud_dn.jpg",
+      "resources/skybox/bluecloud_rt.jpg",
+      "resources/skybox/bluecloud_lf.jpg"
+    };
 
-    // create wave uniform buffers
-    Vision::BufferDesc desc;
-    desc.Type = GL_UNIFORM_BUFFER;
-    desc.Usage = GL_STATIC_DRAW;
-    desc.Size = sizeof(Wave) * numWaves;
-    desc.Data = nullptr;
-    waveBuffer = new Vision::Buffer(desc);
+    skyboxTexture = new Vision::Cubemap(desc);
 
-    GenerateWaves();
+    {
+      // generate waves (manually for now)
+      srand(time(nullptr));
+
+      // create wave uniform buffers
+      Vision::BufferDesc desc;
+      desc.Type = GL_UNIFORM_BUFFER;
+      desc.Usage = GL_STATIC_DRAW;
+      desc.Size = sizeof(Wave) * numWaves;
+      desc.Data = nullptr;
+      waveBuffer = new Vision::Buffer(desc);
+
+      GenerateWaves();
+    }
   }
 
   ~Waves()
@@ -117,7 +140,15 @@ struct Waves : public Vision::App
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     renderer->Begin(camera);
+    
+    // draw the water
     renderer->DrawMesh(planeMesh, waveShader);
+
+    // draw the skybox
+    glDepthFunc(GL_LEQUAL);
+    skyboxTexture->Bind();
+    renderer->DrawMesh(skyboxMesh, skyboxShader);
+    
     renderer->End();
 
     DrawUI();
