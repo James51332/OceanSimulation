@@ -6,6 +6,7 @@
 
 #include <imgui.h>
 
+#include "core/Input.h"
 #include "renderer/Renderer.h"
 #include "renderer/MeshGenerator.h"
 
@@ -40,7 +41,7 @@ struct Waves : public Vision::App
     uiRenderer = new Vision::ImGuiRenderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
     camera = new Vision::PerspectiveCamera(m_DisplayWidth, m_DisplayHeight);
 
-    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 100, 100);
+    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(20.0f, 20.0f, 20, 20, true, false);
     waveShader = new Vision::Shader("resources/waveShader.glsl");
 
     // generate waves (manually for now)
@@ -67,12 +68,12 @@ struct Waves : public Vision::App
     delete waveBuffer;
   }
 
-  float wavelength = 5.0f;
+  float wavelength = 6.5f;
   float amplitude = 0.10f;
   float angularFrequency = 1.5f;
-  float freqDamp = 1.6f;
-  float lengthDamp = 0.75f;
-  float ampDamp = 0.5f;
+  float freqDamp = 1.234f;
+  float lengthDamp = 0.85f;
+  float ampDamp = 0.75f;
 
   void GenerateWaves()
   {
@@ -108,6 +109,12 @@ struct Waves : public Vision::App
 
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Debug
+    if (Vision::Input::KeyDown(SDL_SCANCODE_TAB))
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    else
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     renderer->Begin(camera);
     renderer->DrawMesh(planeMesh, waveShader);
