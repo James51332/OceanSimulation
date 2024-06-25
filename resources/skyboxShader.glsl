@@ -1,12 +1,19 @@
 #type vertex
-#version 410 core
+#version 450 core
 
 layout (location = 0) in vec3 a_Pos;
 
 out vec3 texCoord;
 
-uniform mat4 u_View;
-uniform mat4 u_Projection;
+layout (binding = 0) uniform pushConstants
+{
+  mat4 u_View;
+  mat4 u_Projection;
+  mat4 u_ViewProjection;
+  vec2 u_ViewportSize;
+  float u_Time;
+  float dummy; // 16 byte alignment
+};
 
 void main()
 {
@@ -18,13 +25,13 @@ void main()
 }
 
 #type fragment
-#version 410 core
+#version 450 core
 
 in vec3 texCoord;
 
 out vec4 FragColor;
 
-uniform samplerCube skybox;
+layout (binding = 0) uniform samplerCube skybox;
 
 void main()
 {

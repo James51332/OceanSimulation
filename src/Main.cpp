@@ -23,38 +23,49 @@ struct Wave
   float Phase;
 };
 
+struct LightInfo
+{
+  glm::vec4 lightPos;
+  glm::vec4 camPos;
+  glm::vec4 waveColor;
+};
+
 struct Waves : public Vision::App
 {
-  Vision::Renderer* renderer;
-  Vision::ImGuiRenderer* uiRenderer;
   Vision::PerspectiveCamera* camera;
   Vision::Mesh* planeMesh;
-  Vision::Shader* waveShader;
+  Vision::ID waveShader, wavePS;
 
   Vision::Mesh* skyboxMesh;
-  Vision::Cubemap* skyboxTexture;
-  Vision::Shader* skyboxShader;
+  Vision::ID skyboxTexture;
+  Vision::ID skyboxShader, skyboxPS;
+  Vision::ID renderPass;
 
   constexpr static int numWaves = 10;
   Wave waves[numWaves];
-  Vision::Buffer* waveBuffer;
+  Vision::ID waveBuffer, lightBuffer;
+  LightInfo lightInfo;
 
   Waves()
   {
-    renderer = new Vision::Renderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
-    uiRenderer = new Vision::ImGuiRenderer(m_DisplayWidth, m_DisplayHeight, m_DisplayScale);
-    camera = new Vision::PerspectiveCamera(m_DisplayWidth, m_DisplayHeight);
-
-    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(20.0f, 20.0f, 20, 20, true, false);
-    waveShader = new Vision::Shader("resources/waveShader.glsl");
-
+    // Create the camera and the meshes
+    camera = new Vision::PerspectiveCamera(displayWidth, displayHeight);
+    planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 200, 200, true);
     skyboxMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
-    skyboxShader = new Vision::Shader("resources/skyboxShader.glsl");
-    skyboxShader->Use();
-    skyboxShader->UploadUniformInt(0, "skybox");
+
+    // Load our shaders from disk
+    Vision::ShaderDesc shaderDesc;
+    {
+      shaderDesc.FilePath = "resources/waveShader.glsl";
+      waveShader = renderDevice->CreateShader(shaderDesc);
+
+      shaderDesc.FilePath = "resources/skyboxShader.glsl";
+      skyboxShader = renderDevice->CreateShader(shaderDesc);
+    }
     
-    Vision::CubemapDesc desc;
-    desc.Textures = {
+    // Generate our cubemap texture
+    Vision::CubemapDesc cubemapDesc;
+    cubemapDesc.Textures = {
       "resources/skybox/bluecloud_ft.jpg",
       "resources/skybox/bluecloud_bk.jpg",
       "resources/skybox/bluecloud_up.jpg",
@@ -62,33 +73,85 @@ struct Waves : public Vision::App
       "resources/skybox/bluecloud_rt.jpg",
       "resources/skybox/bluecloud_lf.jpg"
     };
+    skyboxTexture = renderDevice->CreateCubemap(cubemapDesc);
 
-    skyboxTexture = new Vision::Cubemap(desc);
+    // Create our wave and skybox pipeline states
+    {
+      Vision::PipelineDesc psDesc;
 
+      // first, configure psDesc for wavePS
+      psDesc.Shader = waveShader;
+      psDesc.Layouts = 
+      { Vision::BufferLayout({
+        { Vision::ShaderDataType::Float3, "Position"},
+        { Vision::ShaderDataType::Float3, "Normal" },
+        { Vision::ShaderDataType::Float4, "Color" },
+        { Vision::ShaderDataType::Float2, "UV" }}) 
+      };
+      wavePS = renderDevice->CreatePipeline(psDesc);
+
+      // then, configure for skyboxPS
+      psDesc.Shader = skyboxShader;
+      psDesc.DepthTest = true;
+      psDesc.DepthFunc = Vision::DepthFunc::LessEqual;
+      skyboxPS = renderDevice->CreatePipeline(psDesc);
+    }
+
+    // Allocate Uniform Buffer.
     {
       // generate waves (manually for now)
       srand(time(nullptr));
 
       // create wave uniform buffers
       Vision::BufferDesc desc;
-      desc.Type = GL_UNIFORM_BUFFER;
-      desc.Usage = GL_STATIC_DRAW;
+      desc.Type = Vision::BufferType::Uniform;
+      desc.Usage = Vision::BufferUsage::Static;
       desc.Size = sizeof(Wave) * numWaves;
       desc.Data = nullptr;
-      waveBuffer = new Vision::Buffer(desc);
+      desc.DebugName = "Wave Data";
+      waveBuffer = renderDevice->CreateBuffer(desc);
 
       GenerateWaves();
+    }
+
+    // Create light buffer
+    {
+      lightInfo.camPos = glm::vec4(camera->GetPosition(), 1.0f);
+      lightInfo.lightPos = { 100.0, 5.0f, 100.0f, 1.0f };
+      lightInfo.waveColor = { 0.3f, 0.2f, 0.75f, 1.0f };
+
+      Vision::BufferDesc desc;
+      desc.Type = Vision::BufferType::Uniform;
+      desc.Usage = Vision::BufferUsage::Dynamic;
+      desc.Size = sizeof(LightInfo);
+      desc.Data = &lightInfo;
+      desc.DebugName = "Light Info";
+      lightBuffer = renderDevice->CreateBuffer(desc);
+    }
+
+    // Create our RenderPass
+    {
+      Vision::RenderPassDesc rpDesc;
+      rpDesc.Framebuffer = 0; // render to the window directly
+      rpDesc.LoadOp = Vision::LoadOp::Clear; // the skybox will cover everything
+      rpDesc.StoreOp = Vision::StoreOp::Store;
+      renderPass = renderDevice->CreateRenderPass(rpDesc);
     }
   }
 
   ~Waves()
   {
-    delete renderer;
     delete camera;
-
     delete planeMesh;
-    delete waveShader;
-    delete waveBuffer;
+    delete skyboxMesh;
+
+    renderDevice->DestroyPipeline(wavePS);
+    renderDevice->DestroyPipeline(skyboxPS);
+
+    renderDevice->DestroyShader(waveShader);
+    renderDevice->DestroyShader(skyboxShader);
+
+    renderDevice->DestroyCubemap(skyboxTexture);
   }
 
   float wavelength = 6.5f;
@@ -111,7 +174,7 @@ struct Waves : public Vision::App
 
       waves[i].Phase = glm::linearRand(0.0f, 6.28f);
 
-      waves[i].AngularFrequency = curFreq;
+      waves[i].AngularFrequency = glm::sqrt(9.8f * 2.0f * M_PI / curLength); // dispersion relation
       waves[i].Amplitude = curAmp;
       waves[i].Wavelength = curLength;
 
@@ -120,38 +183,37 @@ struct Waves : public Vision::App
       curLength *= lengthDamp;
     }
 
-    waveBuffer->SetData(waves, sizeof(Wave) * 10);
-
-    waveShader->Use();
-    waveShader->SetUniformBlock(waveBuffer, "WaveProperties", 0);
+    renderDevice->SetBufferData(waveBuffer, waves, sizeof(Wave) * 10);
   }
 
   void OnUpdate(float timestep)
   {
     camera->Update(timestep);
 
-    glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Debug
-    if (Vision::Input::KeyDown(SDL_SCANCODE_TAB))
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    else
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    renderDevice->BeginCommandBuffer();
+    renderDevice->BeginRenderPass(renderPass);
 
     renderer->Begin(camera);
     
     // draw the water
-    renderer->DrawMesh(planeMesh, waveShader);
+    lightInfo.camPos = glm::vec4(camera->GetPosition(), 1.0f);
+    renderDevice->SetBufferData(lightBuffer, &lightInfo, sizeof(LightInfo));
+
+    renderDevice->AttachUniformBuffer(waveBuffer, 1);
+    renderDevice->AttachUniformBuffer(lightBuffer, 3);
+    renderer->DrawMesh(planeMesh, wavePS);
 
     // draw the skybox
-    glDepthFunc(GL_LEQUAL);
-    skyboxTexture->Bind();
-    renderer->DrawMesh(skyboxMesh, skyboxShader);
+    renderDevice->BindCubemap(skyboxTexture);
+    renderer->DrawMesh(skyboxMesh, skyboxPS);
     
     renderer->End();
 
     DrawUI();
+
+    renderDevice->EndRenderPass();
+    renderDevice->SchedulePresentation();
+    renderDevice->SubmitCommandBuffer();
   }
 
   void DrawUI()
@@ -168,6 +230,9 @@ struct Waves : public Vision::App
       changed |= ImGui::DragFloat("Length Dampening", &lengthDamp, 0.003f);
       changed |= ImGui::DragFloat("Amp. Damp", &ampDamp, 0.003f);
 
+      ImGui::ColorEdit4("Water Color", &lightInfo.waveColor[0]);
+      ImGui::DragFloat3("Light Pos", &lightInfo.lightPos[0]);
+
       if (changed)
         GenerateWaves();
 
@@ -179,8 +244,7 @@ struct Waves : public Vision::App
 
   void OnResize()
   {
-    renderer->Resize(m_DisplayWidth, m_DisplayHeight);
-    uiRenderer->Resize(m_DisplayWidth, m_DisplayHeight);
+    camera->SetWindowSize(displayWidth, displayHeight);
   }
 };
 

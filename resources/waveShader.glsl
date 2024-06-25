@@ -1,41 +1,17 @@
 #type vertex
-#version 410 core
+#version 450 core
 
 layout (location = 0) in vec3 a_Pos;
 
-void main()
+layout (binding = 0) uniform pushConstants
 {
-  // pass through to tesselation shader
-  gl_Position = vec4(a_Pos, 1.0);
-}
-
-#type tcs
-#version 410 core
-
-layout (vertices = 4) out;
-
-void main()
-{
-    gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
-
-    // ----------------------------------------------------------------------
-    // invocation zero controls tessellation levels for the entire patch
-    if (gl_InvocationID == 0)
-    {
-        gl_TessLevelOuter[0] = 16;
-        gl_TessLevelOuter[1] = 16;
-        gl_TessLevelOuter[2] = 16;
-        gl_TessLevelOuter[3] = 16;
-
-        gl_TessLevelInner[0] = 16;
-        gl_TessLevelInner[1] = 16;
-    }
-}
-
-#type tes
-#version 410 core
-
-layout(quads, fractional_odd_spacing, ccw) in;
+  mat4 u_View;
+  mat4 u_Projection;
+  mat4 u_ViewProjection;
+  vec2 u_ViewportSize;
+  float u_Time;
+  float dummy; // 16 byte alignment
+};
 
 struct Wave
 {
@@ -48,33 +24,22 @@ struct Wave
   float phase;
 };
 
-uniform mat4 u_ViewProjection;
-uniform float u_Time;
-
-layout (std140) uniform WaveProperties
+layout (binding = 1) uniform WaveProperties
 {
   Wave waves[10];
-}; 
+};
+
+layout (binding = 2) uniform Time
+{
+  float time;
+};
 
 out vec3 worldPos;
 out vec3 normal;
 
 void main()
 {
-  // get the tess coords from tesselation generator
-  float u = gl_TessCoord.x;
-  float v = gl_TessCoord.y;
-
-  // interpolate to get world space position
-  vec4 p00 = gl_in[0].gl_Position;
-  vec4 p01 = gl_in[1].gl_Position;
-  vec4 p11 = gl_in[2].gl_Position;
-  vec4 p10 = gl_in[3].gl_Position;
-
-  // bilinearly interpolate position coordinate across patch
-  vec4 p0 = (p01 - p00) * u + p00;
-  vec4 p1 = (p11 - p10) * u + p10;
-  vec4 pos = (p1 - p0) * v + p0;
+  vec4 pos = vec4(a_Pos, 1.0);
 
   // store the partial derivatives for the x directions and the z directions.
   float partialX = 0;
@@ -99,30 +64,35 @@ void main()
     partialZ += wave.amplitude * cos(waveInput) * wave.direction.y * waveNumber;
   }
 
-  // calculate the normal vector
+  //calculate the normal vector
   vec3 binormal = normalize(vec3(1, 0, partialX));
   vec3 tangent = normalize(vec3(0, 1, partialZ));
   normal = cross(binormal, tangent);
 
-  // transform to clip space
+  //transform to clip space
   gl_Position = u_ViewProjection * pos;
   worldPos = pos.xyz;
 }
 
 #type fragment
-#version 410 core
+#version 450 core
 
 in vec3 worldPos;
 in vec3 normal;
 
-uniform vec3 u_CameraPos;
-
 out vec4 fragColor;
+
+layout (binding = 3) uniform LightProperties
+{
+  vec4 lightPos;
+  vec4 cameraPos;
+  vec4 waveColor;
+};
 
 void main()
 {
   // choose some arbitary light direction
-  vec3 lightDir = normalize(vec3(1.0, -0.2, 0.0));
+  vec3 lightDir = normalize(worldPos - lightPos.xyz);
 
   // diffuse calculation
   float diffuseStrength = 0.5;
@@ -130,12 +100,11 @@ void main()
 
   // specular calculation
   float specularStrength = 0.5;
-  vec3 camDir = normalize(u_CameraPos - worldPos);
+  vec3 camDir = normalize(cameraPos.xyz - worldPos);
   float specular = pow(max(dot(reflect(camDir, normal), -lightDir), 0), 32) * specularStrength;
 
   // ambient (constant)
   float ambient = 0.6;
 
-  vec3 color = vec3(0.4, 0.6, 0.81);
-  fragColor = vec4(color * (ambient + diffuse + specular), 1.0);
+  fragColor = vec4(waveColor.rgb * (ambient + diffuse + specular), 1.0);
 }
