@@ -36,8 +36,8 @@ WaveApp::WaveApp()
   rpDesc.StoreOp = Vision::StoreOp::Store;
   renderPass = renderDevice->CreateRenderPass(rpDesc);
 
-  generator->GenerateWaves(0.0167f);
-  Stop();
+  //generator->GenerateWaves(0.0167f);
+  //Stop();
 }
 
 WaveApp::~WaveApp()
@@ -73,30 +73,29 @@ void WaveApp::GenerateWaves()
 
 void WaveApp::OnUpdate(float timestep)
 {
-  // waveRenderer->UpdateCamera(timestep);
+  waveRenderer->UpdateCamera(timestep);
 
-  // // Begin recording commands
-  // renderDevice->BeginCommandBuffer();
+  // Begin recording commands
+  renderDevice->BeginCommandBuffer();
 
-  // // First we do the waves pass
-  // if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-  // {
-  //   renderDevice->BeginComputePass();
-  //   generator->GenerateWaves(timestep);
-  // }
+  // First we do the waves pass
+  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+  {
+    generator->GenerateWaves(timestep);
+  }
 
-  // // Add a barrier to make image memory accessible and visible.
-  // renderDevice->ImageBarrier();
+  // Add a barrier to make image memory accessible and visible.
+  renderDevice->ImageBarrier();
 
-  // // Then we do our the render pass
-  // renderDevice->BeginRenderPass(renderPass);
-  // waveRenderer->Render(0, 0);
-  // DrawUI();
-  // renderDevice->EndRenderPass();
+  // Then we do our the render pass
+  renderDevice->BeginRenderPass(renderPass);
+  waveRenderer->Render(0, 0);
+  DrawUI();
+  renderDevice->EndRenderPass();
 
-  // // And present to the the screen
-  // renderDevice->SchedulePresentation();
-  // renderDevice->SubmitCommandBuffer();
+  // And present to the the screen
+  renderDevice->SchedulePresentation();
+  renderDevice->SubmitCommandBuffer();
 }
 
 void WaveApp::DrawUI()
