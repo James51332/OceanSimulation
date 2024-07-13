@@ -24,6 +24,8 @@ private:
   Vision::ID normalMap = 0;
 
   Vision::ID computePS = 0;
+
+  Vision::ID buffer = 0;
 };
 
 }
