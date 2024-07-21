@@ -1,4 +1,4 @@
-#type vertex
+#section type(vertex)
 #version 450 core
 
 layout (location = 0) in vec3 a_Pos;
@@ -24,7 +24,7 @@ void main()
   gl_Position = pos.xyww; // place the depth in normalized coords as far as possible.
 }
 
-#type fragment
+#section type(fragment)
 #version 450 core
 
 in vec3 texCoord;

@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include "renderer/MeshGenerator.h"
+#include "renderer/shader/ShaderCompiler.h"
 
 namespace Waves
 {
@@ -25,8 +26,6 @@ WaveRenderer::~WaveRenderer()
 
   renderDevice->DestroyPipeline(wavePS);
   renderDevice->DestroyPipeline(skyboxPS);
-  renderDevice->DestroyShader(waveShader);
-  renderDevice->DestroyShader(skyboxShader);
 
   delete planeMesh;
   delete cubeMesh;
@@ -58,33 +57,29 @@ void WaveRenderer::Resize(float w, float h)
 void WaveRenderer::GeneratePipelines()
 {
   // Create the shaders by loading from disk and compiling
-  {
-    Vision::ShaderDesc shaderDesc;
-
-    shaderDesc.FilePath = "resources/waveShader.glsl";
-    waveShader = renderDevice->CreateShader(shaderDesc);
-
-    shaderDesc.FilePath = "resources/skyboxShader.glsl";
-    skyboxShader = renderDevice->CreateShader(shaderDesc);
-  }
+  Vision::ShaderCompiler compiler;
+  std::vector<Vision::ShaderSPIRV> waveShaders = compiler.CompileFile("resources/waveShader.glsl");
+  std::vector<Vision::ShaderSPIRV> skyboxShaders =  compiler.CompileFile("resources/skyboxShader.glsl");
 
   // Create our wave pipeline state
   {
-    Vision::PipelineDesc psDesc;
-    psDesc.Shader = waveShader;
+    Vision::RenderPipelineDesc psDesc;
+    psDesc.VertexShader = waveShaders[0];
+    psDesc.PixelShader = waveShaders[1];
     psDesc.Layouts = { Vision::BufferLayout({
       { Vision::ShaderDataType::Float3, "Position"},
       { Vision::ShaderDataType::Float3, "Normal" },
       { Vision::ShaderDataType::Float4, "Color" },
       { Vision::ShaderDataType::Float2, "UV" }}) 
     };
-    wavePS = renderDevice->CreatePipeline(psDesc);
+    wavePS = renderDevice->CreateRenderPipeline(psDesc);
   }
 
   // Create our skybox pipelines state
   {
-    Vision::PipelineDesc psDesc;
-    psDesc.Shader = skyboxShader;
+    Vision::RenderPipelineDesc psDesc;
+    psDesc.VertexShader = skyboxShaders[0];
+    psDesc.PixelShader = skyboxShaders[1];
     psDesc.Layouts = { Vision::BufferLayout({
       { Vision::ShaderDataType::Float3, "Position"},
       { Vision::ShaderDataType::Float3, "Normal" },
@@ -97,7 +92,7 @@ void WaveRenderer::GeneratePipelines()
     // want to discard the initial pixels with a depth of 1.
     psDesc.DepthFunc = Vision::DepthFunc::LessEqual; 
     
-    skyboxPS = renderDevice->CreatePipeline(psDesc);
+    skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }
 }
 

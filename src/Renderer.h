@@ -38,7 +38,6 @@ private:
   ID skyboxTexture = 0;
 
   // Pipelines and Shaders
-  ID waveShader = 0, skyboxShader = 0;
   ID wavePS = 0, skyboxPS = 0;
   
   // Dynamic Data and Buffers

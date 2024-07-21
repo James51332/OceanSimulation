@@ -1,4 +1,4 @@
-#type vertex
+#section type(vertex)
 #version 450 core
 
 layout (location = 0) in vec3 a_Pos;
@@ -74,7 +74,7 @@ void main()
   worldPos = pos.xyz;
 }
 
-#type fragment
+#section type(fragment)
 #version 450 core
 
 in vec3 worldPos;

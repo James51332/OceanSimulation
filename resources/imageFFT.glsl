@@ -1,4 +1,4 @@
-#type compute
+#section common
 #version 450 core
 
 #define M_PI 3.1415926545897932384
@@ -10,8 +10,8 @@
 
 shared vec2 cache[SHARED_BUFFER_SIZE][NUM_CACHES]; // circular buffer
 
-layout (rgba32f, binding = 0) uniform image2D spectrum;
-layout (rgba32f, binding = 1) uniform image2D normalMap;
+layout (rgba8, binding = 0) uniform image2D spectrum;
+layout (rgba8, binding = 1) uniform image2D normalMap;
 
 // This function takes a final position in the array and computes where it will need to begin for FFT
 // Which happens to be the reversed bits of the original
@@ -75,15 +75,17 @@ ivec3 iFFT(int thread, int cacheIndex, int evenIndex, int oddIndex)
   return ivec3(cacheIndex, evenIndex, oddIndex);
 }
 
+#section type(compute) name(horizontalFFT)
+
 layout (local_size_x = SIZE / 2) in;
 void main()
 {
   ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
 
-  // Copy horizontal data to our cache in bitreversal order ho
+  // Copy horizontal data to our cache in bitreversal order.
   int cacheIndex = 0, evenIndex = 2 * thread.x, oddIndex = 2 * thread.x + 1;
-  cache[cacheIndex][evenIndex] = imageLoad(spectrum, ivec2(bitreversal(evenIndex, LOG_SIZE), thread.y)).rg;
-  cache[cacheIndex][oddIndex] =  imageLoad(spectrum, ivec2(bitreversal(oddIndex, LOG_SIZE), thread.y)).rg;
+  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(evenIndex, thread.y)).rg;
+  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(oddIndex, thread.y)).rg;
 
   // Perform the inverse fft and track where data is stored.
   ivec3 indices = iFFT(thread.x, cacheIndex, evenIndex, oddIndex);
@@ -94,4 +96,27 @@ void main()
   // Copy our data back into the image multiplied by scaling
   imageStore(spectrum, ivec2(evenIndex, thread.y), vec4(cache[cacheIndex][evenIndex] * (1.0 / SIZE), 0.0, 1.0));
   imageStore(spectrum, ivec2(oddIndex, thread.y), vec4(cache[cacheIndex][oddIndex] * (1.0 / SIZE), 0.0, 1.0));
+}
+
+#section type(compute) name(verticalFFT)
+
+layout (local_size_y = SIZE / 2) in;
+void main()
+{
+  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
+
+  // Copy vertical data to our cache in bitreversal order
+  int cacheIndex = 0, evenIndex = 2 * thread.y, oddIndex = 2 * thread.y + 1;
+  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, evenIndex)).rg;
+  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(thread.x, oddIndex)).rg;
+
+  // Perform the inverse fft and track where data is stored
+  ivec3 indices = iFFT(thread.y, cacheIndex, evenIndex, oddIndex);
+  cacheIndex = indices[0];
+  evenIndex = indices[1];
+  oddIndex = indices[2];
+
+  // Copy our data back into the image multiplied by scaling
+  imageStore(spectrum, ivec2(thread.x, evenIndex), vec4(cache[cacheIndex][evenIndex] * (1.0 / SIZE), 0.0, 1.0));
+  imageStore(spectrum, ivec2(thread.x, oddIndex), vec4(cache[cacheIndex][oddIndex] * (1.0 / SIZE), 0.0, 1.0));
 }

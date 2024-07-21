@@ -1,5 +1,7 @@
 #pragma once
 
+#include <glm/glm.hpp>
+
 #include "renderer/RenderDevice.h"
 
 namespace Waves
@@ -22,7 +24,6 @@ private:
 
   Vision::ID heightMap = 0;
   Vision::ID normalMap = 0;
-
   Vision::ID computePS = 0;
 };
 
