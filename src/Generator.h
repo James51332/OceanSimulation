@@ -14,6 +14,7 @@ public:
   Generator(Vision::RenderDevice* device);
   ~Generator();
 
+  void GenerateSpectrum();
   void GenerateWaves(float timestep);
   
   Vision::ID GetHeightMap() const { return heightMap; }

@@ -14,15 +14,11 @@ Generator::Generator(Vision::RenderDevice *device)
 {
   // Create our blank textures
   Vision::Texture2DDesc desc;
-  desc.Width = 8;
-  desc.Height = 8;
-  desc.PixelType = Vision::PixelType::RGBA8;
+  desc.Width = 1024;
+  desc.Height = 1024;
+  desc.PixelType = Vision::PixelType::RGBA32Float;
   desc.WriteOnly = false;
-
-  uint32_t data[64];
-  for (int i = 0; i < 64; i++)
-    data[i] = 0xff0000ff;
-  desc.Data = (uint8_t*)&data;
+  desc.Data = nullptr;
 
   heightMap = renderDevice->CreateTexture2D(desc);
   normalMap = renderDevice->CreateTexture2D(desc);
@@ -41,6 +37,16 @@ Generator::~Generator()
   renderDevice->DestroyComputePipeline(computePS);
 }
 
+void Generator::GenerateSpectrum()
+{
+  renderDevice->BeginComputePass();
+
+  renderDevice->SetComputeTexture(heightMap);
+  renderDevice->DispatchCompute(computePS, "generateSpectrum", { 1024, 1024, 1 });
+
+  renderDevice->EndComputePass();
+}
+
 void Generator::GenerateWaves(float timestep)
 {
   renderDevice->BeginComputePass();
@@ -48,9 +54,10 @@ void Generator::GenerateWaves(float timestep)
   renderDevice->SetComputeTexture(heightMap, 0);
   renderDevice->SetComputeTexture(normalMap, 1);
 
-  renderDevice->DispatchCompute(computePS, "horizontalFFT", { 1, 8, 1 });
+  // Perform our fft
+  renderDevice->DispatchCompute(computePS, "horizontalFFT", { 1, 1024, 1 });
   renderDevice->ImageBarrier();
-  renderDevice->DispatchCompute(computePS, "verticalFFT", {8, 1, 1});
+  renderDevice->DispatchCompute(computePS, "verticalFFT", { 1024, 1, 1 });
 
   renderDevice->EndComputePass();
 }

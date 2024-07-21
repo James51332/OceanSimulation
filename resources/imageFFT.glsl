@@ -3,15 +3,15 @@
 
 #define M_PI 3.1415926545897932384
 
-#define SIZE 8
-#define LOG_SIZE 3
+#define SIZE 1024
+#define LOG_SIZE 10
 #define SHARED_BUFFER_SIZE SIZE
 #define NUM_CACHES 2
 
 shared vec2 cache[SHARED_BUFFER_SIZE][NUM_CACHES]; // circular buffer
 
-layout (rgba8, binding = 0) uniform image2D spectrum;
-layout (rgba8, binding = 1) uniform image2D normalMap;
+layout (rgba32f, binding = 0) uniform image2D spectrum;
+layout (rgba32f, binding = 1) uniform image2D normalMap;
 
 // This function takes a final position in the array and computes where it will need to begin for FFT
 // Which happens to be the reversed bits of the original
@@ -93,9 +93,9 @@ void main()
   evenIndex = indices[1];
   oddIndex = indices[2];
 
-  // Copy our data back into the image multiplied by scaling
-  imageStore(spectrum, ivec2(evenIndex, thread.y), vec4(cache[cacheIndex][evenIndex] * (1.0 / SIZE), 0.0, 1.0));
-  imageStore(spectrum, ivec2(oddIndex, thread.y), vec4(cache[cacheIndex][oddIndex] * (1.0 / SIZE), 0.0, 1.0));
+  // Copy our data back into the image
+  imageStore(spectrum, ivec2(evenIndex, thread.y), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
+  imageStore(spectrum, ivec2(oddIndex, thread.y), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
 }
 
 #section type(compute) name(verticalFFT)
@@ -108,7 +108,7 @@ void main()
   // Copy vertical data to our cache in bitreversal order
   int cacheIndex = 0, evenIndex = 2 * thread.y, oddIndex = 2 * thread.y + 1;
   cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, evenIndex)).rg;
-  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(thread.x, oddIndex)).rg;
+  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, oddIndex)).rg;
 
   // Perform the inverse fft and track where data is stored
   ivec3 indices = iFFT(thread.y, cacheIndex, evenIndex, oddIndex);
@@ -116,7 +116,29 @@ void main()
   evenIndex = indices[1];
   oddIndex = indices[2];
 
-  // Copy our data back into the image multiplied by scaling
-  imageStore(spectrum, ivec2(thread.x, evenIndex), vec4(cache[cacheIndex][evenIndex] * (1.0 / SIZE), 0.0, 1.0));
-  imageStore(spectrum, ivec2(thread.x, oddIndex), vec4(cache[cacheIndex][oddIndex] * (1.0 / SIZE), 0.0, 1.0));
+  // Copy our data back into the image
+  imageStore(spectrum, ivec2(thread.x, evenIndex), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
+  imageStore(spectrum, ivec2(thread.x, oddIndex), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
+}
+
+#section type(compute) name(generateSpectrum)
+
+float rand(vec2 co) 
+{
+  return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main()
+{
+  vec2 pos = gl_GlobalInvocationID.xy;
+
+  float random1 = rand(pos);
+  float random2 = rand(vec2(pos.x, random1));
+
+  vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
+  if (pos.x == 4 && pos.y == 4)
+    col.x = 1.0;
+
+  //vec4 col = vec4(random1, random2, 0.0, 1.0);
+  imageStore(spectrum, ivec2(gl_GlobalInvocationID.xy), col);
 }

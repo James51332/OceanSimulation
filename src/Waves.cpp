@@ -79,6 +79,11 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->BeginCommandBuffer();
 
   // First we do the waves pass
+  if (Vision::Input::KeyPress(SDL_SCANCODE_Y))
+  {
+    generator->GenerateSpectrum();
+  }
+
   if (Vision::Input::KeyPress(SDL_SCANCODE_T))
   {
     generator->GenerateWaves(timestep);
