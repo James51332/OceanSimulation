@@ -40,7 +40,9 @@ void WaveRenderer::UpdateCamera(float timestep)
 void WaveRenderer::Render(ID heightMap, ID normalMap)
 {
   renderer->Begin(camera);
-  // TODO: Draw the waves...
+
+  renderDevice->BindTexture2D(heightMap);
+  renderer->DrawMesh(planeMesh, wavePS);
 
   renderDevice->BindCubemap(skyboxTexture);
   renderer->DrawMesh(cubeMesh, skyboxPS);
@@ -91,6 +93,7 @@ void WaveRenderer::GeneratePipelines()
     // previously rendered to will be written by the depth map, but we do in fact
     // want to discard the initial pixels with a depth of 1.
     psDesc.DepthFunc = Vision::DepthFunc::LessEqual; 
+    //psDesc.DepthTest = true;
     
     skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }

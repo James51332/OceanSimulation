@@ -26,6 +26,8 @@ private:
   Vision::ID heightMap = 0;
   Vision::ID normalMap = 0;
   Vision::ID computePS = 0;
+
+  std::size_t textureSize = 64;
 };
 
 }

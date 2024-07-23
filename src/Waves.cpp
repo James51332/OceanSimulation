@@ -80,21 +80,19 @@ void WaveApp::OnUpdate(float timestep)
 
   // First we do the waves pass
   if (Vision::Input::KeyPress(SDL_SCANCODE_Y))
-  {
     generator->GenerateSpectrum();
-  }
-
-  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-  {
-    generator->GenerateWaves(timestep);
-  }
 
   // Add a barrier to make image memory accessible and visible.
   renderDevice->ImageBarrier();
 
+  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+    generator->GenerateWaves(timestep);
+
+  renderDevice->ImageBarrier();
+
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
-  waveRenderer->Render(0, 0);
+  waveRenderer->Render(generator->GetHeightMap(), 0);
   DrawUI();
   renderDevice->EndRenderPass();
 
@@ -123,7 +121,7 @@ void WaveApp::DrawUI()
       if (changed)
         GenerateWaves();
 
-      ImGui::Image((ImTextureID)generator->GetHeightMap(), {200.0f, 200.0f});
+      ImGui::Image((ImTextureID)generator->GetHeightMap(), {512.0f, 512.0f});
 
       ImGui::PopItemWidth();
     }
@@ -133,6 +131,7 @@ void WaveApp::DrawUI()
 
 void WaveApp::OnResize(float width, float height)
 {
+  // glViewport(0, 0, width, height);
   waveRenderer->Resize(width, height);
 }
 
