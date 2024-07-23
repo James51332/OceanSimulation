@@ -86,8 +86,9 @@ void main()
 
   // Copy horizontal data to our cache in bitreversal order.
   int cacheIndex = 0, evenIndex = 2 * thread.x, oddIndex = 2 * thread.x + 1;
-  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(evenIndex, thread.y)).rg;
-  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(oddIndex, thread.y)).rg;
+  int shiftedReadEven = (evenIndex + SIZE/2) % SIZE, shiftedReadOdd = SIZE - ((oddIndex + SIZE/2) % SIZE);
+  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(shiftedReadEven, thread.y)).rg;
+  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(shiftedReadOdd, thread.y)).rg;
 
   // Perform the inverse fft and track where data is stored.
   ivec3 indices = iFFT(thread.x, cacheIndex, evenIndex, oddIndex, false);
@@ -113,8 +114,9 @@ void main()
 
   // Copy vertical data to our cache in bitreversal order
   int cacheIndex = 0, evenIndex = 2 * thread.y, oddIndex = 2 * thread.y + 1;
-  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, evenIndex)).rg;
-  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, oddIndex)).rg;
+  int shiftedReadEven = (evenIndex + SIZE/2) % SIZE, shiftedReadOdd = SIZE - ((oddIndex + SIZE/2) % SIZE);
+  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, shiftedReadEven)).rg;
+  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, shiftedReadOdd)).rg;
 
   // Perform the inverse fft and track where data is stored
   ivec3 indices = iFFT(thread.y, cacheIndex, evenIndex, oddIndex, false);
@@ -138,11 +140,14 @@ float rand(vec2 co)
 
 void main()
 {
-  vec2 pos = gl_GlobalInvocationID.xy;
+  vec2 pos = vec2(gl_GlobalInvocationID.xy) - SIZE/2;
+  pos.y = -pos.y;
 
+  vec2 uv = pos / (SIZE/2);
   vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
-  if (pos.x == 1 && pos.y == 2)
-    col.x = 1.0;
+  float dist = length(uv);
+  dist = 0.4 - min(dist, 0.4);
+  col.r = dist;
 
   //vec4 col = vec4(random1, random2, 0.0, 1.0);
   imageStore(spectrum, ivec2(gl_GlobalInvocationID.xy), col);

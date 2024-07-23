@@ -52,6 +52,7 @@ void WaveRenderer::Render(ID heightMap, ID normalMap)
 
 void WaveRenderer::Resize(float w, float h)
 {
+  camera->SetWindowSize(w, h);
   width = w;
   height = h;
 }
