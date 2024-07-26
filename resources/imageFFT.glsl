@@ -1,7 +1,7 @@
 #section common
 #version 450 core
 
-#define SIZE 8
+#define SIZE 1024
 #define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
 #define M_PI 3.1415926535897932384
@@ -134,7 +134,7 @@ void main()
 
   vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
 
-  if (frequency.x == 0 && frequency.y == 0)
+  if (frequency.x == 2 && frequency.y == 5)
     color.r = 1.0;
 
   imageStore(image, thread, color);
