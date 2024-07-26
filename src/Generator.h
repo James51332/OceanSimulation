@@ -16,6 +16,9 @@ public:
 
   void GenerateSpectrum();
   void GenerateWaves(float timestep);
+
+  void LoadShaders();
+  void CreateTextures();
   
   Vision::ID GetHeightMap() const { return heightMap; }
   Vision::ID GetNormalMap() const { return normalMap; } 
@@ -27,7 +30,9 @@ private:
   Vision::ID normalMap = 0;
   Vision::ID computePS = 0;
 
-  std::size_t textureSize = 64;
+  Vision::ID ssbo = 0;
+
+  std::size_t textureSize = 8;
 };
 
 }

@@ -75,6 +75,9 @@ void WaveApp::OnUpdate(float timestep)
 {
   waveRenderer->UpdateCamera(timestep);
 
+  if (Vision::Input::KeyPress(SDL_SCANCODE_R)) // reload shaders
+    generator->LoadShaders();
+
   // Begin recording commands
   renderDevice->BeginCommandBuffer();
 
@@ -104,26 +107,9 @@ void WaveApp::OnUpdate(float timestep)
 void WaveApp::DrawUI()
 {
     uiRenderer->Begin();
-    if (ImGui::Begin("Settings"))
+    if (ImGui::Begin("TextureViewer"))
     {
-      ImGui::PushItemWidth(0.4f * ImGui::GetWindowWidth());
-      bool changed = false;
-      changed |= ImGui::DragFloat("Wavelength", &wavelength, 0.003f);
-      changed |= ImGui::DragFloat("Amplitude", &amplitude, 0.003f);
-      changed |= ImGui::DragFloat("Frequency", &angularFrequency, 0.003f);
-      changed |= ImGui::DragFloat("Freq. Dampening", &freqDamp, 0.003f);
-      changed |= ImGui::DragFloat("Length Dampening", &lengthDamp, 0.003f);
-      changed |= ImGui::DragFloat("Amp. Damp", &ampDamp, 0.003f);
-
-      // ImGui::ColorEdit4("Water Color", &lightInfo.waveColor[0]);
-      // ImGui::DragFloat3("Light Pos", &lightInfo.lightPos[0]);
-
-      if (changed)
-        GenerateWaves();
-
-      ImGui::Image((ImTextureID)generator->GetHeightMap(), {512.0f, 512.0f});
-
-      ImGui::PopItemWidth();
+      ImGui::Image((ImTextureID)generator->GetHeightMap(), {400.0f, 400.0f});
     }
     ImGui::End();
     uiRenderer->End();
@@ -131,7 +117,6 @@ void WaveApp::DrawUI()
 
 void WaveApp::OnResize(float width, float height)
 {
-  // glViewport(0, 0, width, height);
   waveRenderer->Resize(width, height);
 }
 

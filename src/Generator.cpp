@@ -12,21 +12,47 @@ namespace Waves
 Generator::Generator(Vision::RenderDevice *device)
   : renderDevice(device)
 {
-  // Create our blank textures
-  Vision::Texture2DDesc desc;
-  desc.Width = textureSize;
-  desc.Height = textureSize;
-  desc.PixelType = Vision::PixelType::RGBA32Float;
-  desc.WriteOnly = false;
-  desc.Data = nullptr;
+  CreateTextures();
+  LoadShaders();
 
-  heightMap = renderDevice->CreateTexture2D(desc);
-  normalMap = renderDevice->CreateTexture2D(desc);
+  std::vector<glm::vec2> data = {
+    { 2.125000f, 0.500000f },
+    { -0.426777f, 0.478553f },
+    { 0.125000f, 0.000000f },
+    { 0.030330f, -0.021447f },
+    { 0.125000f, 0.000000f },
+    { -0.073223f, -0.228553f },
+    { 0.125000f, 0.000000f },
+    { -1.030330f, -0.728553f }
+  };
 
-  // Create the compute pipeline
-  Vision::ComputePipelineDesc pipelineDesc;
-  pipelineDesc.ComputeKernels = Vision::ShaderCompiler().CompileFile("resources/imageFFT.glsl");
-  computePS = renderDevice->CreateComputePipeline(pipelineDesc);
+  Vision::BufferDesc desc;
+  desc.Type = Vision::BufferType::ShaderStorage;
+  desc.Size = sizeof(glm::vec4) * data.size();
+  desc.Data = data.data();
+  desc.DebugName = "FFT SSBO";
+  desc.Usage = Vision::BufferUsage::Dynamic;
+  ssbo = device->CreateBuffer(desc);
+
+  device->BeginCommandBuffer();
+  device->BeginComputePass();
+
+  device->SetComputeBuffer(ssbo);
+  device->DispatchCompute(computePS, "fft", {1,1,1});
+
+  device->EndComputePass();
+  device->SubmitCommandBuffer(true);
+
+  glm::vec2* ssboData;
+  device->MapBufferData(ssbo, (void**)&ssboData, sizeof(glm::vec2) * data.size());
+  if (ssboData)
+  {
+    for (int i = 0; i < data.size(); i++)
+    {
+      std::cout << "{ " << ssboData[i].x << ", " << ssboData[i].y << " }" << std::endl;
+    }
+  }
+  device->FreeBufferData(ssbo, (void**)&ssboData);
 }
 
 Generator::~Generator()
@@ -49,25 +75,52 @@ void Generator::GenerateSpectrum()
 
 void Generator::GenerateWaves(float timestep)
 {
-  if (Vision::Input::KeyDown(SDL_SCANCODE_Z))
-  {
-    renderDevice->DestroyComputePipeline(computePS);
-    Vision::ComputePipelineDesc pipelineDesc;
-    pipelineDesc.ComputeKernels = Vision::ShaderCompiler().CompileFile("resources/imageFFT.glsl");
-    computePS = renderDevice->CreateComputePipeline(pipelineDesc);
-  }
-
   renderDevice->BeginComputePass();
 
-  renderDevice->SetComputeTexture(heightMap, 0);
-  renderDevice->SetComputeTexture(normalMap, 1);
+  renderDevice->SetComputeTexture(heightMap);
+  renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
 
   // Perform our fft
-  renderDevice->DispatchCompute(computePS, "horizontalFFT", { 1, textureSize, 1 });
   renderDevice->ImageBarrier();
-  renderDevice->DispatchCompute(computePS, "verticalFFT", { textureSize, 1, 1 });
+
+  renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
 
   renderDevice->EndComputePass();
+}
+
+void Generator::LoadShaders()
+{
+  if (computePS)
+    renderDevice->DestroyComputePipeline(computePS);
+
+  Vision::ComputePipelineDesc desc;
+  Vision::ShaderCompiler compiler;
+  
+  std::vector<Vision::ShaderSPIRV> imageFuncs = compiler.CompileFile("resources/imageFFT.glsl");
+  std::vector<Vision::ShaderSPIRV> bufferFuncs = compiler.CompileFile("resources/bufferFFT.glsl");
+  desc.ComputeKernels = imageFuncs;
+  desc.ComputeKernels.insert(desc.ComputeKernels.end(), bufferFuncs.begin(), bufferFuncs.end()); // concatenate via a copy
+  computePS = renderDevice->CreateComputePipeline(desc);
+}
+
+void Generator::CreateTextures()
+{
+  if (heightMap)
+  {
+    renderDevice->DestroyTexture2D(heightMap);
+    renderDevice->DestroyTexture2D(normalMap);
+  }
+
+  // Create our blank textures
+  Vision::Texture2DDesc desc;
+  desc.Width = textureSize;
+  desc.Height = textureSize;
+  desc.PixelType = Vision::PixelType::RGBA32Float;
+  desc.WriteOnly = false;
+  desc.Data = nullptr;
+
+  heightMap = renderDevice->CreateTexture2D(desc);
+  normalMap = renderDevice->CreateTexture2D(desc);
 }
 
 }

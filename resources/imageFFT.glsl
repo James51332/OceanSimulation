@@ -1,154 +1,141 @@
 #section common
 #version 450 core
 
-#define M_PI 3.1415926545897932384
-
-#define SIZE 64
-#define LOG_SIZE 6
-#define SHARED_BUFFER_SIZE SIZE
+#define SIZE 8
+#define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
+#define M_PI 3.1415926535897932384
 
-shared vec2 cache[SHARED_BUFFER_SIZE][NUM_CACHES]; // circular buffer
+shared vec2 cache[SIZE][NUM_CACHES];
 
-layout (rgba32f, binding = 0) uniform image2D spectrum;
-layout (rgba32f, binding = 1) uniform image2D normalMap;
+layout (rgba32f, binding = 0) uniform image2D image;
 
-// This function takes a final position in the array and computes where it will need to begin for FFT
-// Which happens to be the reversed bits of the original
-int bitreversal(int value, int bits)
+uint reverseBits(uint num, uint numBits)
 {
-  int reversed = 0;
-  while (bits > 0)
-  {
-    reversed <<= 1;
-    reversed |= value & 1;
-    value >>= 1;
+    uint value = 0;
 
-    bits--;
-  }
+    for (uint i = 0; i < numBits; i++)
+    {
+        value <<= 1;
+        value |= (num & 1);
+        num >>= 1;
+    }
 
-  return reversed;
+    return value;
 }
 
-int calculateEvenIndex(int thread, int halfSize)
+uvec3 ifft(uint thread, uint cacheIndex, uint evenIndex, uint oddIndex)
 {
-  int dft = thread / halfSize; // integer division
-  int firstEven = dft * (halfSize << 1);
-  return firstEven + (thread % halfSize);
+    for (int i = 0; i < LOG_SIZE; i++) // each iteration represents a combination of stages
+    {
+        // ensure that all threads have finished the last iteration
+        barrier(); 
+
+        // calculate our new even and odd indices
+        // 1) use one thread per set of even and odd indices
+        // 2) each dft requires half its size worth of threads => dft # is (thread div halfSize)
+        // 3) even index = dftNum * dftSize + (thread mod halfSize)
+        // 4) odd index = evenIndex + halfSize
+        uint halfSize = 1u << i;
+        uint fullSize = halfSize << 1;
+        int dftNum = int(thread) / int(halfSize);
+        int dftElement = int(thread) % int(halfSize);
+        evenIndex = dftNum * int(fullSize) + dftElement;
+        oddIndex = evenIndex + int(halfSize);
+
+        // compute the twiddle factor for combining two dfts
+        float twiddleAngle = 2.0 * M_PI * dftElement / fullSize; // making this positive causes iFFT
+        vec2 twiddle = vec2(cos(twiddleAngle), sin(twiddleAngle));
+
+        // retrieve our values and twiddle the odd factor
+        vec2 even = cache[cacheIndex][evenIndex];
+        vec2 odd = cache[cacheIndex][oddIndex];
+
+        odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y,
+                   odd.x * twiddle.y + odd.y * twiddle.x);
+                
+        // move to the next ping pong buffer and combine
+        cacheIndex = (cacheIndex + 1) % NUM_CACHES;
+        cache[cacheIndex][evenIndex] = even + odd;
+        cache[cacheIndex][oddIndex] = even - odd;
+    }
+
+    return uvec3(cacheIndex, evenIndex, oddIndex);
 }
 
-ivec3 iFFT(int thread, int cacheIndex, int evenIndex, int oddIndex, bool forward)
-{
-  // Iterately apply butterfly combination until we've done our FFT
-  for (int i = 0; i < LOG_SIZE; i++)
-  {
-    // Wait until all of our workgroup threads are here
-    barrier(); 
+#section type(compute) name(horizontalIFFT)
 
-    // Determine the half size of our tiny DFT
-    int halfSize = 1 << i;
-    int fullSize = halfSize << 1;
+layout (local_size_x = SIZE/2) in;
+void main()
+{
+    // each thread is responsible for one even index and one odd index
+    uint thread = uint(gl_LocalInvocationID.x);
+    uint cacheIndex = 0;
+    uint evenIndex = thread * 2;
+    uint oddIndex = evenIndex + 1;
+
+    // center lowest amplitudes at center (0 => SIZE) -> (SIZE/2 => SIZE; 0 => SIZE/2)
+    uint evenRead = (evenIndex + SIZE/2) % SIZE; 
+    uint oddRead = (oddIndex + SIZE/2) % SIZE;
     
-    // Find our indices to butterfly
-    evenIndex = calculateEvenIndex(thread, halfSize);
-    oddIndex = evenIndex + halfSize;
+    // copy from our buffer to the cache in bit reversal order
+    cache[cacheIndex][reverseBits(evenIndex, LOG_SIZE)] = imageLoad(image, ivec2(evenRead, gl_GlobalInvocationID.y)).xy;
+    cache[cacheIndex][reverseBits(oddIndex, LOG_SIZE)] = imageLoad(image, ivec2(oddRead, gl_GlobalInvocationID.y)).xy;
+    
+    // perform the fft
+    uvec3 indices = ifft(thread, cacheIndex, evenIndex, oddIndex);
+    cacheIndex = indices.x;
+    evenIndex = indices.y;
+    oddIndex = indices.z;
 
-    // Read the values
-    vec2 even = cache[cacheIndex][evenIndex];
-    vec2 odd = cache[cacheIndex][oddIndex];
-
-    // Butterfly them together using even +/- (twiddle * odd)
-    float sampleNum = evenIndex % fullSize;
-    float twiddleAngle = -1.0 * (2.0 * M_PI / float(fullSize)) * sampleNum; // negative for forward fft
-    vec2 twiddle = vec2(cos(twiddleAngle), sin(twiddleAngle));
-
-    // (a + bi)(c + di) = (ac - bd) + (ad + bc)i
-    odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y, odd.x * twiddle.y + odd.y * twiddle.x);
-
-    // Store in the next ping-pong buffer
-    cacheIndex = (cacheIndex + 1) % NUM_CACHES;
-    cache[cacheIndex][evenIndex] = even + odd;
-    cache[cacheIndex][oddIndex] = even - odd;
-  }
-
-  // Return the cache index so that we can copy the data back into the image.
-  return ivec3(cacheIndex, evenIndex, oddIndex);
+    // copy our data back into the ssbo
+    imageStore(image, ivec2(evenIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
+    imageStore(image, ivec2(oddIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
 }
 
-#section type(compute) name(horizontalFFT)
+#section type(compute) name(verticalIFFT)
 
-layout (local_size_x = SIZE / 2) in;
+layout (local_size_y = SIZE/2) in;
 void main()
 {
-  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
-  // thread.y = (SIZE/2 + thread.y) % SIZE;
-  // thread.x = (thread.x + SIZE/2) % SIZE;
+    // each thread is responsible for one even index and one odd index
+    uint thread = uint(gl_LocalInvocationID.y);
+    uint cacheIndex = 0;
+    uint evenIndex = thread * 2;
+    uint oddIndex = evenIndex + 1;
 
-  // Copy horizontal data to our cache in bitreversal order.
-  int cacheIndex = 0, evenIndex = 2 * thread.x, oddIndex = 2 * thread.x + 1;
-  int shiftedReadEven = (evenIndex + SIZE/2) % SIZE, shiftedReadOdd = SIZE - ((oddIndex + SIZE/2) % SIZE);
-  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(shiftedReadEven, thread.y)).rg;
-  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] =  imageLoad(spectrum, ivec2(shiftedReadOdd, thread.y)).rg;
+    // center lowest amplitudes at center (0 => SIZE) -> (SIZE/2 => 0; SIZE => SIZE/2)
+    uint evenRead = (SIZE + SIZE/2 - 1 - evenIndex) % SIZE; 
+    uint oddRead = (SIZE + SIZE/2 - 1 - oddIndex) % SIZE;
 
-  // Perform the inverse fft and track where data is stored.
-  ivec3 indices = iFFT(thread.x, cacheIndex, evenIndex, oddIndex, false);
-  cacheIndex = indices[0];
-  evenIndex = indices[1];
-  oddIndex = indices[2];
+    // copy from our buffer to the cache in bit reversal order
+    cache[cacheIndex][reverseBits(evenIndex, LOG_SIZE)] = imageLoad(image, ivec2(gl_GlobalInvocationID.x, evenRead)).xy;
+    cache[cacheIndex][reverseBits(oddIndex, LOG_SIZE)] = imageLoad(image, ivec2(gl_GlobalInvocationID.x, oddRead)).xy;
 
-  barrier(); 
+    // perform the fft
+    uvec3 indices = ifft(thread, cacheIndex, evenIndex, oddIndex);
+    cacheIndex = indices.x;
+    evenIndex = indices.y;
+    oddIndex = indices.z;
 
-  // Copy our data back into the image
-  imageStore(spectrum, ivec2(evenIndex, thread.y), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
-  imageStore(spectrum, ivec2(oddIndex, thread.y), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
-}
-
-#section type(compute) name(verticalFFT)
-
-layout (local_size_y = SIZE / 2) in;
-void main()
-{
-  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
-  // thread.y = (SIZE/2 + thread.y) % SIZE;
-  // thread.x = (thread.x + SIZE/2) % SIZE;
-
-  // Copy vertical data to our cache in bitreversal order
-  int cacheIndex = 0, evenIndex = 2 * thread.y, oddIndex = 2 * thread.y + 1;
-  int shiftedReadEven = (evenIndex + SIZE/2) % SIZE, shiftedReadOdd = SIZE - ((oddIndex + SIZE/2) % SIZE);
-  cache[cacheIndex][bitreversal(evenIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, shiftedReadEven)).rg;
-  cache[cacheIndex][bitreversal(oddIndex, LOG_SIZE)] = imageLoad(spectrum, ivec2(thread.x, shiftedReadOdd)).rg;
-
-  // Perform the inverse fft and track where data is stored
-  ivec3 indices = iFFT(thread.y, cacheIndex, evenIndex, oddIndex, false);
-  cacheIndex = indices[0];
-  evenIndex = indices[1];
-  oddIndex = indices[2];
-
-  barrier(); 
-
-  // Copy our data back into the image
-  imageStore(spectrum, ivec2(thread.x, evenIndex), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
-  imageStore(spectrum, ivec2(thread.x, oddIndex), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
+    // copy our data back into the ssbo
+    imageStore(image, ivec2(gl_GlobalInvocationID.x, evenIndex), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
+    imageStore(image, ivec2(gl_GlobalInvocationID.x, oddIndex), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
 }
 
 #section type(compute) name(generateSpectrum)
 
-float rand(vec2 co) 
-{
-  return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
 void main()
 {
-  vec2 pos = vec2(gl_GlobalInvocationID.xy) - SIZE/2;
-  pos.y = -pos.y;
+  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
+  vec2 frequency = vec2(thread.x - SIZE/2, SIZE/2 - 1 - thread.y);
+  vec2 uv = vec2(frequency) * (2.0 / SIZE);
+  float dist = 1.0 - min(length(uv), 1.0);
 
-  vec2 uv = pos / (SIZE/2);
-  vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
-  float dist = length(uv);
-  dist = 0.4 - min(dist, 0.4);
-  col.r = dist;
+  vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
 
-  //vec4 col = vec4(random1, random2, 0.0, 1.0);
-  imageStore(spectrum, ivec2(gl_GlobalInvocationID.xy), col);
+  if (frequency.x == 0 && frequency.y == 0)
+    color.r = 1.0;
+
+  imageStore(image, thread, color);
 }
