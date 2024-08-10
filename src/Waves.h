@@ -17,7 +17,6 @@ public:
   void OnUpdate(float timestep);
   void OnResize(float width, float height);
 
-  void GenerateWaves();
   void DrawUI();
 
 private:

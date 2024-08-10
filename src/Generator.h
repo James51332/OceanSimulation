@@ -32,7 +32,7 @@ private:
 
   Vision::ID ssbo = 0;
 
-  std::size_t textureSize = 1024;
+  std::size_t textureSize = 256;
 };
 
 }

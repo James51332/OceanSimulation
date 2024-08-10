@@ -11,23 +11,10 @@
 namespace Waves 
 {
 
-struct Wave
-{
-  // Origin & Direction
-  glm::vec2 Origin;
-  glm::vec2 Direction;
-
-  // Other Properties
-  float Amplitude;
-  float Wavelength;
-  float AngularFrequency;
-  float Phase;
-};
-
 WaveApp::WaveApp()
 {
   generator = new Generator(renderDevice);
-  waveRenderer = new WaveRenderer(renderDevice, renderer, displayWidth, displayHeight);
+  waveRenderer = new WaveRenderer(renderDevice, renderer, GetDisplayWidth(), GetDisplayHeight());
 
   // Create our RenderPass
   Vision::RenderPassDesc rpDesc;
@@ -35,9 +22,6 @@ WaveApp::WaveApp()
   rpDesc.LoadOp = Vision::LoadOp::Clear;
   rpDesc.StoreOp = Vision::StoreOp::Store;
   renderPass = renderDevice->CreateRenderPass(rpDesc);
-
-  //generator->GenerateWaves(0.0167f);
-  //Stop();
 }
 
 WaveApp::~WaveApp()
@@ -48,35 +32,15 @@ WaveApp::~WaveApp()
   delete generator;
 }
 
-void WaveApp::GenerateWaves()
-{
-  // float curFreq = angularFrequency;
-  // float curAmp = amplitude;
-  // float curLength = wavelength;
-
-  // for (int i = 0; i < 10; i++)
-  // {
-  //   waves[i].Origin = glm::linearRand(glm::vec2(-1.0f), glm::vec2(1.0f));
-  //   waves[i].Direction = glm::circularRand(1.0f);
-  //   waves[i].Phase = glm::linearRand(0.0f, 6.28f);
-  //   waves[i].AngularFrequency = glm::sqrt(9.8f * 2.0f * M_PI / curLength); // dispersion relation
-  //   waves[i].Amplitude = curAmp;
-  //   waves[i].Wavelength = curLength;
-
-  //   curFreq *= freqDamp;
-  //   curAmp *= ampDamp;
-  //   curLength *= lengthDamp;
-  // }
-
-  // renderDevice->SetBufferData(waveBuffer, waves, sizeof(Wave) * 10);
-}
-
 void WaveApp::OnUpdate(float timestep)
 {
   waveRenderer->UpdateCamera(timestep);
 
   if (Vision::Input::KeyPress(SDL_SCANCODE_R)) // reload shaders
     generator->LoadShaders();
+
+  if (!ShouldRender())
+    return;
 
   // Begin recording commands
   renderDevice->BeginCommandBuffer();
@@ -89,9 +53,10 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->ImageBarrier();
 
   if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+  {
     generator->GenerateWaves(timestep);
-
-  renderDevice->ImageBarrier();
+    renderDevice->ImageBarrier();
+  }
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
@@ -110,6 +75,7 @@ void WaveApp::DrawUI()
     if (ImGui::Begin("TextureViewer"))
     {
       ImGui::Image((ImTextureID)generator->GetHeightMap(), {400.0f, 400.0f});
+      ImGui::Image((ImTextureID)generator->GetNormalMap(), {400.0f, 400.0f});
     }
     ImGui::End();
     uiRenderer->End();
