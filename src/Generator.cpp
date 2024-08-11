@@ -21,15 +21,15 @@ Generator::Generator(Vision::RenderDevice *device)
   desc.Type = Vision::BufferType::Uniform;
   desc.Usage = Vision::BufferUsage::Dynamic;
   desc.Size = sizeof(glm::vec4);
-  glm::vec4 data = glm::vec4(time);
-  desc.Data = &data;
+  desc.Data = nullptr;
   uniformBuffer = renderDevice->CreateBuffer(desc);
 }
 
 Generator::~Generator()
 {
   renderDevice->DestroyTexture2D(heightMap);
-  renderDevice->DestroyTexture2D(normalMap);
+  renderDevice->DestroyTexture2D(normalMapX);
+  renderDevice->DestroyTexture2D(normalMapZ);
   renderDevice->DestroyTexture2D(gaussianImage);
 
   renderDevice->DestroyBuffer(uniformBuffer);
@@ -39,33 +39,48 @@ Generator::~Generator()
 
 void Generator::GenerateSpectrum(float timestep)
 {
-  time += timestep;
-  glm::vec4 data(time);
-  renderDevice->SetBufferData(uniformBuffer, &data, sizeof(glm::vec4));
-
   renderDevice->BeginComputePass();
 
+  // Update our uniform data
+  time += timestep;
+  glm::vec4 data(time, 10.0f, 0.0f, 0.0f);
+  renderDevice->SetBufferData(uniformBuffer, &data, sizeof(glm::vec4));
   renderDevice->SetComputeBuffer(uniformBuffer);
+
   renderDevice->SetComputeTexture(heightMap);
+
+  // Generate the phillips spectrum based on the given time
   renderDevice->SetComputeTexture(gaussianImage, 1);
   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
+
+  // Generate the normal map fft
+  renderDevice->SetComputeTexture(normalMapX, 1);
+  renderDevice->SetComputeTexture(normalMapZ, 2);
+  renderDevice->DispatchCompute(computePS, "prepareNormalMap", {textureSize, textureSize, 1});
 
   renderDevice->EndComputePass();
 }
 
+void FFT(Vision::ID image, Vision::ID computePS, std::size_t size, Vision::RenderDevice *device)
+{
+  device->SetComputeTexture(image);
+  device->DispatchCompute(computePS, "horizontalIFFT", {1, size, 1});
+  device->ImageBarrier();
+  device->DispatchCompute(computePS, "verticalIFFT", {size, 1, 1});
+}
+
 void Generator::GenerateWaves()
 {
- renderDevice->BeginComputePass();
+  renderDevice->BeginComputePass();
+  FFT(heightMap, computePS, textureSize, renderDevice);
+  FFT(normalMapX, computePS, textureSize, renderDevice);
+  FFT(normalMapZ, computePS, textureSize, renderDevice);
 
- renderDevice->SetComputeTexture(heightMap);
- renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
-
- // Perform our fft
- renderDevice->ImageBarrier();
-
- renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
-
- renderDevice->EndComputePass();
+  // Combine the normal maps after fft.
+  renderDevice->SetComputeTexture(normalMapX, 1);
+  renderDevice->SetComputeTexture(normalMapZ, 2);
+  renderDevice->DispatchCompute(computePS, "combine", {textureSize, textureSize, 1});
+  renderDevice->EndComputePass();
 }
 
 void Generator::LoadShaders()
@@ -89,7 +104,8 @@ void Generator::CreateTextures()
   if (heightMap)
   {
     renderDevice->DestroyTexture2D(heightMap);
-    renderDevice->DestroyTexture2D(normalMap);
+    renderDevice->DestroyTexture2D(normalMapX);
+    renderDevice->DestroyTexture2D(normalMapZ);
     renderDevice->DestroyTexture2D(gaussianImage);
   }
 
@@ -102,18 +118,19 @@ void Generator::CreateTextures()
   desc.Data = nullptr;
 
   heightMap = renderDevice->CreateTexture2D(desc);
-  normalMap = renderDevice->CreateTexture2D(desc);
+  normalMapX = renderDevice->CreateTexture2D(desc);
+  normalMapZ = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
 
   // create our gaussian texture
-  std::vector<glm::vec4> randomValues(textureSize * textureSize, glm::vec4(0.0f));
+  std::vector<glm::vec2> randomValues(textureSize * textureSize, glm::vec4(0.0f));
   float scale = 1.0 / glm::sqrt(2.0);
   for (int i = 0; i < textureSize * textureSize; i++)
   {
     float x = glm::gaussRand(0.0, 1.0);
     float y = glm::gaussRand(0.0, 1.0);
     glm::vec2 amp = glm::vec2(x, y) * scale;
-    randomValues[i] = glm::vec4(amp, 0.0, 1.0);
+    randomValues[i] = amp;
   }
   renderDevice->SetTexture2DDataRaw(gaussianImage, randomValues.data());
 }

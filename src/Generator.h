@@ -21,13 +21,14 @@ public:
   void CreateTextures();
   
   Vision::ID GetHeightMap() const { return heightMap; }
-  Vision::ID GetNormalMap() const { return normalMap; } 
+  Vision::ID GetNormalMap() const { return normalMapX; } 
 
 private:
   Vision::RenderDevice* renderDevice = nullptr;
 
   Vision::ID heightMap = 0;
-  Vision::ID normalMap = 0;
+  Vision::ID normalMapX = 0;
+  Vision::ID normalMapZ = 0;
   Vision::ID gaussianImage = 0;
 
   Vision::ID uniformBuffer = 0;

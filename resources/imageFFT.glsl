@@ -136,8 +136,11 @@ float phillips(vec2 waveNumber, vec2 windVelocity, float gravity)
   
   float L = windSpeed * windSpeed / gravity;
   float L2 = L * L;
+
+  float damping = 0.001f;
+	float l2 = L2 * damping * damping;
   
-  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2;
+  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2 * exp(-waveNumberLength2 * l2);
 }
 
 float dispersion(vec2 waveNumber, float gravity)
@@ -148,18 +151,19 @@ float dispersion(vec2 waveNumber, float gravity)
 layout (std140, binding = 0) uniform settings
 {
   float time;
-  vec3 dummy;
+  float planeSize;
+  vec2 dummy;
 };
 
 void main()
 {
   float gravity = 9.8;
-  float scale = 0.001;
-  vec2 windVelocity = vec2(8.0, 2.0);
+  float scale = 0.05;
+  vec2 windVelocity = vec2(5.0, 3.0);
 
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 frequency = ((thread / SIZE) - 0.5) * 2.0;
-  vec2 waveNumber = frequency * M_PI;
+  vec2 frequency = thread - SIZE/2;
+  vec2 waveNumber = 2.0 * M_PI * frequency / planeSize; // 2 * PI / waveLength = 2 * PI / (dist/frequency)
 
   // get a gaussian random value
   vec2 currentValue = imageLoad(gaussianImage, ivec2(thread)).xy;
@@ -171,9 +175,66 @@ void main()
   currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
                       currentValue.x * rotate.y + currentValue.y * rotate.x);
   
-  // calculate the amplitude scale using the phillips spectrum
-  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  // calculate the amplitude scale using the phillips spectrum w/ normalization factor.
+  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));// / (SIZE * SIZE);
   
   vec4 color = vec4(amp, 0.0, 1.0);
   imageStore(image, ivec2(thread), color);
 }
+
+#section type(compute) name(prepareNormalMap)
+
+layout (std140, binding = 0) uniform settings
+{
+  float time;
+  float planeSize;
+  vec2 dummy;
+};
+
+layout (rgba32f, binding = 1) uniform image2D normalMapX;
+layout (rgba32f, binding = 2) uniform image2D normalMapZ;
+
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+  vec2 frequency = thread - SIZE/2;
+  vec2 waveNumber = 2.0 * M_PI * frequency / planeSize;
+
+  // to calculate the gradient, we take the partial derivative of the fourier transform
+  // with respect to each direction, which is a modified signal that we can take the FFT
+  // to sum to get the gradient. Then we can determine the normal.
+  vec2 currentAmp = imageLoad(image, ivec2(thread)).xy;
+  vec2 xDerivative = waveNumber.x * vec2(-currentAmp.y, currentAmp.x);
+  vec2 zDerivative = waveNumber.y * vec2(-currentAmp.y, currentAmp.x);
+
+  imageStore(normalMapX, ivec2(thread), vec4(xDerivative, 0.0, 1.0));
+  imageStore(normalMapZ, ivec2(thread), vec4(zDerivative, 0.0, 1.0));
+}
+
+
+#section type(compute) name(combine)
+
+layout (std140, binding = 0) uniform settings
+{
+  float time;
+  float planeSize;
+  vec2 dummy;
+};
+
+layout (rgba32f, binding = 1) uniform image2D normalMapX;
+layout (rgba32f, binding = 2) uniform image2D normalMapZ;
+
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+
+  float xDerivative = imageLoad(normalMapX, ivec2(thread)).x;
+  float zDerivative = imageLoad(normalMapZ, ivec2(thread)).x;
+
+  vec3 binormal = vec3(1.0, xDerivative, 0.0);
+  vec3 tangent = vec3(0.0, zDerivative, 1.0);
+  vec3 normal = normalize(cross(tangent, binormal));
+
+  imageStore(normalMapX, ivec2(thread), vec4(normal, 1.0));
+}
+
