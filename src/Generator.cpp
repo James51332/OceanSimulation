@@ -15,6 +15,15 @@ Generator::Generator(Vision::RenderDevice *device)
 {
   CreateTextures();
   LoadShaders();
+
+  Vision::BufferDesc desc;
+  desc.DebugName = "FFT Settings";
+  desc.Type = Vision::BufferType::Uniform;
+  desc.Usage = Vision::BufferUsage::Dynamic;
+  desc.Size = sizeof(glm::vec4);
+  glm::vec4 data = glm::vec4(time);
+  desc.Data = &data;
+  uniformBuffer = renderDevice->CreateBuffer(desc);
 }
 
 Generator::~Generator()
@@ -23,13 +32,20 @@ Generator::~Generator()
   renderDevice->DestroyTexture2D(normalMap);
   renderDevice->DestroyTexture2D(gaussianImage);
 
+  renderDevice->DestroyBuffer(uniformBuffer);
+
   renderDevice->DestroyComputePipeline(computePS);
 }
 
-void Generator::GenerateSpectrum()
+void Generator::GenerateSpectrum(float timestep)
 {
+  time += timestep;
+  glm::vec4 data(time);
+  renderDevice->SetBufferData(uniformBuffer, &data, sizeof(glm::vec4));
+
   renderDevice->BeginComputePass();
 
+  renderDevice->SetComputeBuffer(uniformBuffer);
   renderDevice->SetComputeTexture(heightMap);
   renderDevice->SetComputeTexture(gaussianImage, 1);
   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
@@ -37,7 +53,7 @@ void Generator::GenerateSpectrum()
   renderDevice->EndComputePass();
 }
 
-void Generator::GenerateWaves(float timestep)
+void Generator::GenerateWaves()
 {
  renderDevice->BeginComputePass();
 

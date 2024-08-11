@@ -14,8 +14,8 @@ public:
   Generator(Vision::RenderDevice* device);
   ~Generator();
 
-  void GenerateSpectrum();
-  void GenerateWaves(float timestep);
+  void GenerateSpectrum(float timestep);
+  void GenerateWaves();
 
   void LoadShaders();
   void CreateTextures();
@@ -31,11 +31,11 @@ private:
   Vision::ID gaussianImage = 0;
 
   Vision::ID uniformBuffer = 0;
-  float time;
+  float time = 0.0f;
 
   Vision::ID computePS = 0;
 
-  std::size_t textureSize = 256;
+  std::size_t textureSize = 512;
 };
 
 }

@@ -1,7 +1,7 @@
 #section common
 #version 450 core
 
-#define SIZE 256
+#define SIZE 512
 #define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
 #define M_PI 3.1415926535897932384
@@ -145,11 +145,11 @@ float dispersion(vec2 waveNumber, float gravity)
   return sqrt(gravity * length(waveNumber));
 }
 
-// layout (std140, binding = 0) uniform settings
-// {
-//   float time;
-//   vec3 dummy;
-// };
+layout (std140, binding = 0) uniform settings
+{
+  float time;
+  vec3 dummy;
+};
 
 void main()
 {
@@ -165,11 +165,11 @@ void main()
   vec2 currentValue = imageLoad(gaussianImage, ivec2(thread)).xy;
 
   // determine the phase based on the time and rotate the gaussian
-  // float phase = time * dispersion(waveNumber, gravity);
-  // vec2 rotate = vec2(cos(phase), sin(phase));
+  float phase = time * dispersion(waveNumber, gravity);
+  vec2 rotate = vec2(cos(phase), sin(phase));
 
-  // currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
-  //                     currentValue.x * rotate.y + currentValue.y * rotate.x);
+  currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
+                      currentValue.x * rotate.y + currentValue.y * rotate.x);
   
   // calculate the amplitude scale using the phillips spectrum
   vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));

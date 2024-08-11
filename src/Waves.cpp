@@ -46,17 +46,12 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->BeginCommandBuffer();
 
   // First we do the waves pass
-  if (Vision::Input::KeyPress(SDL_SCANCODE_Y))
-    generator->GenerateSpectrum();
+  generator->GenerateSpectrum(timestep);
 
   // Add a barrier to make image memory accessible and visible.
   renderDevice->ImageBarrier();
-
-  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-  {
-    generator->GenerateWaves(timestep);
-    renderDevice->ImageBarrier();
-  }
+  generator->GenerateWaves();
+  renderDevice->ImageBarrier();
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
