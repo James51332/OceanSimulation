@@ -65,8 +65,8 @@ void main()
   uint evenIndex = thread * 2;
   uint oddIndex = evenIndex + 1;
 
-  // center lowest amplitudes at center (0 => SIZE) -> (SIZE/2 => SIZE; 0 => SIZE/2)
-  uint evenRead = (evenIndex + SIZE/2) % SIZE; 
+  // center lowest amplitudes at center (0 => SIZE - 1) -> (SIZE/2 + 1 => 0; 1 => SIZE/2)
+  uint evenRead = (evenIndex + SIZE/2) % SIZE;
   uint oddRead = (oddIndex + SIZE/2) % SIZE;
     
   // copy from our buffer to the cache in bit reversal order
@@ -96,8 +96,8 @@ void main()
   uint oddIndex = evenIndex + 1;
 
   // center lowest amplitudes at center (0 => SIZE) -> (SIZE/2 => 0; SIZE => SIZE/2)
-  uint evenRead = (SIZE + SIZE/2 - 1 - evenIndex) % SIZE; 
-  uint oddRead = (SIZE + SIZE/2 - 1 - oddIndex) % SIZE;
+  uint evenRead = (evenIndex + SIZE/2) % SIZE;
+  uint oddRead = (oddIndex + SIZE/2) % SIZE;
 
   // copy from our buffer to the cache in bit reversal order
   cache[cacheIndex][reverseBits(evenIndex, LOG_SIZE)] = imageLoad(image, ivec2(gl_GlobalInvocationID.x, evenRead)).xy;
@@ -116,17 +116,64 @@ void main()
 
 #section type(compute) name(generateSpectrum)
 
+layout (rgba32f, binding = 1) uniform image2D gaussianImage;
+
+float phillips(vec2 waveNumber, vec2 windVelocity, float gravity)
+{
+  float waveNumberLength = length(waveNumber);
+  if (waveNumberLength == 0.0)
+    return 0.0;
+
+  float waveNumberLength2 = waveNumberLength * waveNumberLength;
+  float waveNumberLength4 = waveNumberLength2 * waveNumberLength2;
+  vec2 waveNumberDir = normalize(waveNumber);
+  
+  float windSpeed = length(windVelocity);
+  vec2 windDir = normalize(windVelocity);
+  
+  float waveDotWind = dot(waveNumberDir, windDir);
+  float waveDotWind2 = waveDotWind * waveDotWind;
+  
+  float L = windSpeed * windSpeed / gravity;
+  float L2 = L * L;
+  
+  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2;
+}
+
+float dispersion(vec2 waveNumber, float gravity)
+{
+  return sqrt(gravity * length(waveNumber));
+}
+
+// layout (std140, binding = 0) uniform settings
+// {
+//   float time;
+//   vec3 dummy;
+// };
+
 void main()
 {
-  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
-  vec2 frequency = vec2(thread.x - SIZE/2, SIZE/2 - 1 - thread.y);
-  vec2 uv = vec2(frequency) * (2.0 / SIZE);
-  float dist = 1.0 - min(length(uv), 1.0);
+  float gravity = 9.8;
+  float scale = 0.001;
+  vec2 windVelocity = vec2(8.0, 2.0);
 
-  vec4 color = vec4(0.0, 0.0, 0.0, 1.0);
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+  vec2 frequency = ((thread / SIZE) - 0.5) * 2.0;
+  vec2 waveNumber = frequency * M_PI;
 
-  if (frequency.y == 1 && frequency.x == 2)
-    color.r = 1.0;
+  // get a gaussian random value
+  vec2 currentValue = imageLoad(gaussianImage, ivec2(thread)).xy;
 
-  imageStore(image, thread, color);
+  // determine the phase based on the time and rotate the gaussian
+  // float phase = time * dispersion(waveNumber, gravity);
+  // vec2 rotate = vec2(cos(phase), sin(phase));
+
+  // currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
+  //                     currentValue.x * rotate.y + currentValue.y * rotate.x);
+  
+  // calculate the amplitude scale using the phillips spectrum
+  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  
+  vec4 color = vec4(amp, 0.0, 1.0);
+  imageStore(image, ivec2(thread), color);
 }

@@ -1,5 +1,6 @@
 #include "Generator.h"
 
+#include <glm/gtc/random.hpp>
 #include <iostream>
 
 #include "renderer/shader/ShaderCompiler.h"
@@ -14,51 +15,13 @@ Generator::Generator(Vision::RenderDevice *device)
 {
   CreateTextures();
   LoadShaders();
-
-  std::vector<glm::vec2> data = {
-    { 2.125000f, 0.500000f },
-    { -0.426777f, 0.478553f },
-    { 0.125000f, 0.000000f },
-    { 0.030330f, -0.021447f },
-    { 0.125000f, 0.000000f },
-    { -0.073223f, -0.228553f },
-    { 0.125000f, 0.000000f },
-    { -1.030330f, -0.728553f }
-  };
-
-  Vision::BufferDesc desc;
-  desc.Type = Vision::BufferType::ShaderStorage;
-  desc.Size = sizeof(glm::vec4) * data.size();
-  desc.Data = data.data();
-  desc.DebugName = "FFT SSBO";
-  desc.Usage = Vision::BufferUsage::Dynamic;
-  ssbo = device->CreateBuffer(desc);
-
-  device->BeginCommandBuffer();
-  device->BeginComputePass();
-
-  device->SetComputeBuffer(ssbo);
-  device->DispatchCompute(computePS, "fft", {1,1,1});
-
-  device->EndComputePass();
-  device->SubmitCommandBuffer(true);
-
-  glm::vec2* ssboData;
-  device->MapBufferData(ssbo, (void**)&ssboData, sizeof(glm::vec2) * data.size());
-  if (ssboData)
-  {
-    for (int i = 0; i < data.size(); i++)
-    {
-      std::cout << "{ " << ssboData[i].x << ", " << ssboData[i].y << " }" << std::endl;
-    }
-  }
-  device->FreeBufferData(ssbo, (void**)&ssboData);
 }
 
 Generator::~Generator()
 {
   renderDevice->DestroyTexture2D(heightMap);
   renderDevice->DestroyTexture2D(normalMap);
+  renderDevice->DestroyTexture2D(gaussianImage);
 
   renderDevice->DestroyComputePipeline(computePS);
 }
@@ -68,6 +31,7 @@ void Generator::GenerateSpectrum()
   renderDevice->BeginComputePass();
 
   renderDevice->SetComputeTexture(heightMap);
+  renderDevice->SetComputeTexture(gaussianImage, 1);
   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
 
   renderDevice->EndComputePass();
@@ -75,17 +39,17 @@ void Generator::GenerateSpectrum()
 
 void Generator::GenerateWaves(float timestep)
 {
-  renderDevice->BeginComputePass();
+ renderDevice->BeginComputePass();
 
-  renderDevice->SetComputeTexture(heightMap);
-  renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
+ renderDevice->SetComputeTexture(heightMap);
+ renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
 
-  // Perform our fft
-  renderDevice->ImageBarrier();
+ // Perform our fft
+ renderDevice->ImageBarrier();
 
-  renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
+ renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
 
-  renderDevice->EndComputePass();
+ renderDevice->EndComputePass();
 }
 
 void Generator::LoadShaders()
@@ -105,13 +69,15 @@ void Generator::LoadShaders()
 
 void Generator::CreateTextures()
 {
+  // delete any textures we may have remaining
   if (heightMap)
   {
     renderDevice->DestroyTexture2D(heightMap);
     renderDevice->DestroyTexture2D(normalMap);
+    renderDevice->DestroyTexture2D(gaussianImage);
   }
 
-  // Create our blank textures
+  // create our blank textures
   Vision::Texture2DDesc desc;
   desc.Width = textureSize;
   desc.Height = textureSize;
@@ -121,6 +87,19 @@ void Generator::CreateTextures()
 
   heightMap = renderDevice->CreateTexture2D(desc);
   normalMap = renderDevice->CreateTexture2D(desc);
+  gaussianImage = renderDevice->CreateTexture2D(desc);
+
+  // create our gaussian texture
+  std::vector<glm::vec4> randomValues(textureSize * textureSize, glm::vec4(0.0f));
+  float scale = 1.0 / glm::sqrt(2.0);
+  for (int i = 0; i < textureSize * textureSize; i++)
+  {
+    float x = glm::gaussRand(0.0, 1.0);
+    float y = glm::gaussRand(0.0, 1.0);
+    glm::vec2 amp = glm::vec2(x, y) * scale;
+    randomValues[i] = glm::vec4(amp, 0.0, 1.0);
+  }
+  renderDevice->SetTexture2DDataRaw(gaussianImage, randomValues.data());
 }
 
 }

@@ -14,13 +14,17 @@ layout (binding = 0) uniform pushConstants
   float dummy; // 16 byte alignment
 };
 
-out vec2 v_UV;
+layout (binding = 0) uniform sampler2D heightMap;
 
+out vec2 v_UV;
 
 void main()
 { 
-  gl_Position = u_ViewProjection * vec4(a_Pos, 1.0);
-  v_UV = a_UV;
+  vec2 uv = a_UV * 0.2;
+  vec3 pos = a_Pos;
+  pos.y += (texture(heightMap, uv).r) - 0.5 * 0.005;
+  gl_Position = u_ViewProjection * vec4(pos, 1.0);
+  v_UV = uv;
 }
 
 #section type(fragment)
@@ -28,12 +32,12 @@ void main()
 
 in vec2 v_UV;
 
-layout (binding = 0) uniform sampler2D heightMap;
-
 out vec4 fragColor;
+
+layout (binding = 0) uniform sampler2D heightMap;
 
 void main()
 {
-  float height = texture(heightMap, v_UV).r / 4.0 + 0.5;
+  float height = texture(heightMap, v_UV).r * 0.5 + 0.4;
   fragColor = vec4(0.0, 0.0, height, 1.0);
 }

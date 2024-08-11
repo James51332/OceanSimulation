@@ -11,7 +11,7 @@ WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* rende
 {
   camera = new Vision::PerspectiveCamera(width, height);
 
-  planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 100, 100, true);
+  planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 1000, 1000, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
 
   GeneratePipelines();

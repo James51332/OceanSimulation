@@ -28,9 +28,12 @@ private:
 
   Vision::ID heightMap = 0;
   Vision::ID normalMap = 0;
-  Vision::ID computePS = 0;
+  Vision::ID gaussianImage = 0;
 
-  Vision::ID ssbo = 0;
+  Vision::ID uniformBuffer = 0;
+  float time;
+
+  Vision::ID computePS = 0;
 
   std::size_t textureSize = 256;
 };
