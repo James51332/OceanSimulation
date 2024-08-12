@@ -37,13 +37,21 @@ Generator::~Generator()
   renderDevice->DestroyComputePipeline(computePS);
 }
 
-void Generator::GenerateSpectrum(float timestep)
+void FFT(Vision::ID image, Vision::ID computePS, std::size_t size, Vision::RenderDevice *device)
+{
+  device->SetComputeTexture(image);
+  device->DispatchCompute(computePS, "horizontalIFFT", {1, size, 1});
+  device->ImageBarrier();
+  device->DispatchCompute(computePS, "verticalIFFT", {size, 1, 1});
+}
+
+void Generator::CalculateOcean(float timestep)
 {
   renderDevice->BeginComputePass();
 
   // Update our uniform data
   time += timestep;
-  glm::vec4 data(time, 10.0f, 0.0f, 0.0f);
+  glm::vec4 data(time, 40.0f, 0.0f, 0.0f);
   renderDevice->SetBufferData(uniformBuffer, &data, sizeof(glm::vec4));
   renderDevice->SetComputeBuffer(uniformBuffer);
 
@@ -58,28 +66,26 @@ void Generator::GenerateSpectrum(float timestep)
   renderDevice->SetComputeTexture(normalMapZ, 2);
   renderDevice->DispatchCompute(computePS, "prepareNormalMap", {textureSize, textureSize, 1});
 
-  renderDevice->EndComputePass();
-}
+  // Generate the normal map fft
+  renderDevice->SetComputeTexture(displacementX, 1);
+  renderDevice->SetComputeTexture(displacementZ, 2);
+  renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", {textureSize, textureSize, 1});
 
-void FFT(Vision::ID image, Vision::ID computePS, std::size_t size, Vision::RenderDevice *device)
-{
-  device->SetComputeTexture(image);
-  device->DispatchCompute(computePS, "horizontalIFFT", {1, size, 1});
-  device->ImageBarrier();
-  device->DispatchCompute(computePS, "verticalIFFT", {size, 1, 1});
-}
-
-void Generator::GenerateWaves()
-{
-  renderDevice->BeginComputePass();
   FFT(heightMap, computePS, textureSize, renderDevice);
   FFT(normalMapX, computePS, textureSize, renderDevice);
   FFT(normalMapZ, computePS, textureSize, renderDevice);
+  FFT(displacementX, computePS, textureSize, renderDevice);
+  FFT(displacementZ, computePS, textureSize, renderDevice);
 
-  // Combine the normal maps after fft.
+  // Combine the normal maps after fft
   renderDevice->SetComputeTexture(normalMapX, 1);
   renderDevice->SetComputeTexture(normalMapZ, 2);
-  renderDevice->DispatchCompute(computePS, "combine", {textureSize, textureSize, 1});
+  renderDevice->DispatchCompute(computePS, "combineNormalMap", {textureSize, textureSize, 1});
+
+  // Also the displacement maps after fft
+  renderDevice->SetComputeTexture(displacementX, 1);
+  renderDevice->SetComputeTexture(displacementZ, 2);
+  renderDevice->DispatchCompute(computePS, "combineDisplacementMap", {textureSize, textureSize, 1});
   renderDevice->EndComputePass();
 }
 
@@ -106,6 +112,8 @@ void Generator::CreateTextures()
     renderDevice->DestroyTexture2D(heightMap);
     renderDevice->DestroyTexture2D(normalMapX);
     renderDevice->DestroyTexture2D(normalMapZ);
+    renderDevice->DestroyTexture2D(displacementX);
+    renderDevice->DestroyTexture2D(displacementZ);
     renderDevice->DestroyTexture2D(gaussianImage);
   }
 
@@ -120,6 +128,8 @@ void Generator::CreateTextures()
   heightMap = renderDevice->CreateTexture2D(desc);
   normalMapX = renderDevice->CreateTexture2D(desc);
   normalMapZ = renderDevice->CreateTexture2D(desc);
+  displacementX = renderDevice->CreateTexture2D(desc);
+  displacementZ = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
 
   // create our gaussian texture

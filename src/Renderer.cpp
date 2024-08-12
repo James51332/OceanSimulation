@@ -11,7 +11,7 @@ WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* rende
 {
   camera = new Vision::PerspectiveCamera(width, height);
 
-  planeMesh = Vision::MeshGenerator::CreatePlaneMesh(10.0f, 10.0f, 1000, 1000, true);
+  planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
 
   GeneratePipelines();
@@ -43,6 +43,7 @@ void WaveRenderer::Render(ID heightMap, ID normalMap)
 
   renderDevice->BindTexture2D(heightMap);
   renderDevice->BindTexture2D(normalMap, 1);
+  renderDevice->BindCubemap(skyboxTexture, 2);
   renderer->DrawMesh(planeMesh, wavePS);
 
   renderDevice->BindCubemap(skyboxTexture);

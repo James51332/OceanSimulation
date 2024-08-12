@@ -1,7 +1,7 @@
 #section common
 #version 450 core
 
-#define SIZE 512
+#define SIZE 1024
 #define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
 #define M_PI 3.1415926535897932384
@@ -158,8 +158,8 @@ layout (std140, binding = 0) uniform settings
 void main()
 {
   float gravity = 9.8;
-  float scale = 0.05;
-  vec2 windVelocity = vec2(5.0, 3.0);
+  float scale = 0.01;
+  vec2 windVelocity = vec2(10.0, 8.0);
 
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 frequency = thread - SIZE/2;
@@ -211,8 +211,7 @@ void main()
   imageStore(normalMapZ, ivec2(thread), vec4(zDerivative, 0.0, 1.0));
 }
 
-
-#section type(compute) name(combine)
+#section type(compute) name(combineNormalMap)
 
 layout (std140, binding = 0) uniform settings
 {
@@ -238,3 +237,52 @@ void main()
   imageStore(normalMapX, ivec2(thread), vec4(normal, 1.0));
 }
 
+#section type(compute) name(prepareDisplacementMap)
+
+layout (std140, binding = 0) uniform settings
+{
+  float time;
+  float planeSize;
+  vec2 dummy;
+};
+
+layout (rgba32f, binding = 1) uniform image2D displacementX;
+layout (rgba32f, binding = 2) uniform image2D displacementZ;
+
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+  vec2 frequency = thread - SIZE/2;
+  vec2 waveNumber = 2.0 * M_PI * frequency / planeSize;
+
+  // displacement vector = -i * k/|k| * exp(i * dot(k,x));
+  vec2 currentAmp = imageLoad(image, ivec2(thread)).xy;
+  vec2 waveDir = normalize(waveNumber);
+  vec2 xDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
+  vec2 zDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
+
+  imageStore(displacementX, ivec2(thread), vec4(xDisplacementSignal, 0.0, 1.0));
+  imageStore(displacementZ, ivec2(thread), vec4(zDisplacementSignal, 0.0, 1.0));
+}
+
+
+#section type(compute) name(combineDisplacementMap)
+
+layout (std140, binding = 0) uniform settings
+{
+  float time;
+  float planeSize;
+  vec2 dummy;
+};
+
+layout (rgba32f, binding = 1) uniform image2D displacementX;
+layout (rgba32f, binding = 2) uniform image2D displacementZ;
+
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+
+  vec2 xDisplacement = imageLoad(displacementX, ivec2(thread)).xy;
+  vec2 zDisplacement = imageLoad(displacementZ, ivec2(thread)).xy;
+  imageStore(displacementX, ivec2(thread), vec4(xDisplacement, zDisplacement));
+}

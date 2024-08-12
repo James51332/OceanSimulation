@@ -21,6 +21,7 @@ WaveApp::WaveApp()
   rpDesc.Framebuffer = 0;
   rpDesc.LoadOp = Vision::LoadOp::Clear;
   rpDesc.StoreOp = Vision::StoreOp::Store;
+  rpDesc.ClearColor = { 0.5f, 0.5f, 0.5f, 1.0f };
   renderPass = renderDevice->CreateRenderPass(rpDesc);
 }
 
@@ -47,17 +48,12 @@ void WaveApp::OnUpdate(float timestep)
 
   // First we do the waves pass
   if (!Vision::Input::KeyDown(SDL_SCANCODE_Q))
-  {
-    generator->GenerateSpectrum(timestep);
-    renderDevice->ImageBarrier();
-    generator->GenerateWaves();
-    renderDevice->ImageBarrier();
-  }
+    generator->CalculateOcean(timestep);
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
   waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap());
-  DrawUI();
+  //DrawUI();
   renderDevice->EndRenderPass();
 
   // And present to the the screen

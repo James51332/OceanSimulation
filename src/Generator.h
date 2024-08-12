@@ -14,14 +14,14 @@ public:
   Generator(Vision::RenderDevice* device);
   ~Generator();
 
-  void GenerateSpectrum(float timestep);
-  void GenerateWaves();
+  void CalculateOcean(float timestep);
 
   void LoadShaders();
   void CreateTextures();
   
   Vision::ID GetHeightMap() const { return heightMap; }
   Vision::ID GetNormalMap() const { return normalMapX; } 
+  Vision::ID GetDisplacementMap() const { return displacementX; }
 
 private:
   Vision::RenderDevice* renderDevice = nullptr;
@@ -29,6 +29,8 @@ private:
   Vision::ID heightMap = 0;
   Vision::ID normalMapX = 0;
   Vision::ID normalMapZ = 0;
+  Vision::ID displacementX = 0;
+  Vision::ID displacementZ = 0;
   Vision::ID gaussianImage = 0;
 
   Vision::ID uniformBuffer = 0;
@@ -36,7 +38,7 @@ private:
 
   Vision::ID computePS = 0;
 
-  std::size_t textureSize = 512;
+  std::size_t textureSize = 1024;
 };
 
 }
