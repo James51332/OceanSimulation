@@ -158,7 +158,7 @@ layout (std140, binding = 0) uniform settings
 void main()
 {
   float gravity = 9.8;
-  float scale = 0.01;
+  float scale = 0.02;
   vec2 windVelocity = vec2(10.0, 8.0);
 
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
@@ -175,8 +175,8 @@ void main()
   currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
                       currentValue.x * rotate.y + currentValue.y * rotate.x);
   
-  // calculate the amplitude scale using the phillips spectrum w/ normalization factor.
-  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));// / (SIZE * SIZE);
+  // calculate the amplitude scale using the phillips spectrum
+  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
   
   vec4 color = vec4(amp, 0.0, 1.0);
   imageStore(image, ivec2(thread), color);
