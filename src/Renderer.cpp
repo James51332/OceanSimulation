@@ -37,13 +37,14 @@ void WaveRenderer::UpdateCamera(float timestep)
   camera->Update(timestep);
 }
 
-void WaveRenderer::Render(ID heightMap, ID normalMap)
+void WaveRenderer::Render(ID heightMap, ID normalMap, ID displacementMap)
 {
   renderer->Begin(camera);
 
-  renderDevice->BindTexture2D(heightMap);
+  renderDevice->BindTexture2D(heightMap, 0);
   renderDevice->BindTexture2D(normalMap, 1);
-  renderDevice->BindCubemap(skyboxTexture, 2);
+  renderDevice->BindTexture2D(displacementMap, 2);
+  renderDevice->BindCubemap(skyboxTexture, 3);
   renderer->DrawMesh(planeMesh, wavePS);
 
   renderDevice->BindCubemap(skyboxTexture);

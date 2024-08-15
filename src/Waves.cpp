@@ -47,13 +47,15 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->BeginCommandBuffer();
 
   // First we do the waves pass
-  if (!Vision::Input::KeyDown(SDL_SCANCODE_Q))
-    generator->CalculateOcean(timestep);
+  if (Vision::Input::KeyDown(SDL_SCANCODE_Y))
+    generator->GenerateSpectrum();
+  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+    generator->CalculateOcean(timestep, Vision::Input::KeyDown(SDL_SCANCODE_P));
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
-  waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap());
-  //DrawUI();
+  waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap(), generator->GetDisplacementMap());
+  DrawUI();
   renderDevice->EndRenderPass();
 
   // And present to the the screen
@@ -70,6 +72,16 @@ void WaveApp::DrawUI()
       ImGui::Image((ImTextureID)generator->GetNormalMap(), {400.0f, 400.0f});
     }
     ImGui::End();
+
+    if (ImGui::Begin("Ocean Settings"))
+    {
+      Generator::OceanSettings& settings = generator->GetOceanSettings();
+      ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
+      ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
+      ImGui::DragFloat("Scale", &settings.scale, 0.0005f);
+    }
+    ImGui::End();
+
     uiRenderer->End();
   }
 

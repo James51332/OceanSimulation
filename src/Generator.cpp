@@ -1,13 +1,14 @@
 #include "Generator.h"
 
 #include <glm/gtc/random.hpp>
+#include <glm/gtc/integer.hpp>
 #include <iostream>
 
 #include "renderer/shader/ShaderCompiler.h"
 
 #include "core/Input.h"
 
-namespace Waves
+    namespace Waves
 {
 
 Generator::Generator(Vision::RenderDevice *device)
@@ -23,6 +24,13 @@ Generator::Generator(Vision::RenderDevice *device)
   desc.Size = sizeof(OceanSettings);
   desc.Data = &oceanSettings;
   uniformBuffer = renderDevice->CreateBuffer(desc);
+
+  Vision::BufferDesc desc2;
+  desc2.Type = Vision::BufferType::Uniform;
+  desc2.Usage = Vision::BufferUsage::Dynamic;
+  desc2.Size = sizeof(glm::vec4);
+  desc2.Data = nullptr;
+  fftSettings = renderDevice->CreateBuffer(desc2);
 }
 
 Generator::~Generator()
@@ -37,19 +45,77 @@ Generator::~Generator()
   renderDevice->DestroyComputePipeline(computePS);
 }
 
-void Generator::CalculateOcean(float timestep)
+void Generator::GenerateSpectrum()
+{
+  renderDevice->BeginComputePass();
+  
+  // This is a test FFT using our multipass API
+  renderDevice->SetComputeBuffer(uniformBuffer);
+
+  // prepare our spectrum
+  renderDevice->SetComputeTexture(heightMap, 0);
+  renderDevice->SetComputeTexture(gaussianImage, 1);
+  renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
+  renderDevice->ImageBarrier();
+
+  // switch to fft settings
+  renderDevice->SetComputeBuffer(fftSettings);
+
+  // swap around our image
+  renderDevice->DispatchCompute(computePS, "fftShift", { textureSize, textureSize / 2, 1});
+  renderDevice->ImageBarrier();
+
+  glm::ivec4 settings(0, false, 0, 0);
+  renderDevice->SetBufferData(fftSettings, &settings, sizeof(glm::vec4));
+  renderDevice->DispatchCompute(computePS, "imageReversal", { 1, textureSize, 1 });
+  renderDevice->ImageBarrier();
+
+  settings.y = true;
+  renderDevice->SetBufferData(fftSettings, &settings, sizeof(glm::vec4));
+  renderDevice->DispatchCompute(computePS, "imageReversal", {1, textureSize, 1});
+  renderDevice->ImageBarrier();
+
+  // horizontal
+  int logSize = glm::log2(textureSize);
+  for (int i = 0; i < logSize; i++)
+  {
+    settings = glm::ivec4(i, false, i % 2 == 1, 0);
+    renderDevice->SetBufferData(fftSettings, &settings, sizeof(glm::vec4));
+    renderDevice->SetComputeBuffer(fftSettings);
+
+    renderDevice->DispatchCompute(computePS, "fft", {1, textureSize, 1});
+    renderDevice->ImageBarrier();
+  }
+
+  // vertical
+  for (int i = 0; i < logSize; i++)
+  {
+    settings = glm::ivec4(i, true, i % 2 == 1, 0);
+    renderDevice->SetBufferData(fftSettings, &settings, sizeof(glm::vec4));
+    renderDevice->SetComputeBuffer(fftSettings);
+
+    renderDevice->DispatchCompute(computePS, "fft", {1, textureSize, 1});
+    renderDevice->ImageBarrier();
+  }
+
+  renderDevice->EndComputePass();
+}
+
+void Generator::CalculateOcean(float timestep, bool dir)
 {
   renderDevice->BeginComputePass();
 
+  if (!dir)
+  {
   // Update our ocean's settings
-  oceanSettings.time += timestep;
+  //oceanSettings.time += timestep;
   renderDevice->SetBufferData(uniformBuffer, &oceanSettings, sizeof(OceanSettings));
   renderDevice->SetComputeBuffer(uniformBuffer);
 
   // Generate the phillips spectrum based on the given time
   renderDevice->SetComputeTexture(heightMap, 0);
   renderDevice->SetComputeTexture(gaussianImage, 1);
-  renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "generateSpectrum", {textureSize, textureSize, 1});
 
   // Prepare the normal map FFT
   renderDevice->SetComputeTexture(normalMapX, 0);
@@ -62,6 +128,7 @@ void Generator::CalculateOcean(float timestep)
   renderDevice->SetComputeTexture(displacementZ, 1);
   // renderDevice->SetComputeTexture(heightMap, 2); // still bound
   renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", { textureSize, textureSize, 1 });
+  }
 
   // Ensure that none of our FFTs operate before we are ready
   renderDevice->ImageBarrier();
@@ -69,9 +136,10 @@ void Generator::CalculateOcean(float timestep)
   // Perform all of our necessary FFTs
   auto fft = [&](Vision::ID image) {
     renderDevice->SetComputeTexture(image);
-    renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
-    renderDevice->ImageBarrier();
-    renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
+    if (dir)
+      renderDevice->DispatchCompute(computePS, "verticalIFFT", { textureSize, 1, 1 });
+    else
+      renderDevice->DispatchCompute(computePS, "horizontalIFFT", { 1, textureSize, 1 });
   };
 
   fft(heightMap);
@@ -104,6 +172,7 @@ void Generator::LoadShaders()
   Vision::ComputePipelineDesc desc;
   Vision::ShaderCompiler compiler;
   compiler.CompileFile("resources/fft.compute", desc.ComputeKernels);
+  compiler.CompileFile("resources/multipass.compute", desc.ComputeKernels);
   compiler.CompileFile("resources/spectrum.compute", desc.ComputeKernels);
   computePS = renderDevice->CreateComputePipeline(desc);
 }
@@ -127,7 +196,7 @@ void Generator::CreateTextures()
   desc.Height = textureSize;
   desc.PixelType = Vision::PixelType::RGBA32Float;
   desc.MinFilter = Vision::MinMagFilter::Linear;
-  desc.MagFilter = Vision::MinMagFilter::Linear;
+  desc.MagFilter = Vision::MinMagFilter::Nearest;
   desc.WriteOnly = false;
   desc.Data = nullptr;
 

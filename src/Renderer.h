@@ -15,7 +15,7 @@ public:
   ~WaveRenderer();
 
   void UpdateCamera(float timestep);
-  void Render(ID heightMap, ID normalMap);
+  void Render(ID heightMap, ID normalMap, ID displacement);
   void Resize(float width, float height);
 
 private:

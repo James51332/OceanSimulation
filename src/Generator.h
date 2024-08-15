@@ -14,7 +14,8 @@ public:
   Generator(Vision::RenderDevice* device);
   ~Generator();
 
-  void CalculateOcean(float timestep);
+  void GenerateSpectrum();
+  void CalculateOcean(float timestep, bool dir);
 
   struct OceanSettings
   {
@@ -41,7 +42,9 @@ private:
   Vision::ID uniformBuffer = 0;
   OceanSettings oceanSettings;
 
-  std::size_t textureSize = 1024;
+  Vision::ID fftSettings = 0;
+
+  std::size_t textureSize = 32;
   Vision::ID heightMap = 0;
   Vision::ID normalMapX = 0;
   Vision::ID normalMapZ = 0;

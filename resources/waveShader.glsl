@@ -15,7 +15,9 @@ layout (std140, binding = 0) uniform pushConstants
 };
 
 layout (binding = 0) uniform sampler2D heightMap;
-layout (binding = 3) uniform sampler2D displacement;
+layout (binding = 1) uniform sampler2D normalMap;
+layout (binding = 2) uniform sampler2D displacement;
+layout (binding = 3) uniform samplerCube skybox;
 
 out vec2 v_UV;
 out vec3 v_WorldPos;
@@ -44,7 +46,8 @@ out vec4 fragColor;
 
 layout (binding = 0) uniform sampler2D heightMap;
 layout (binding = 1) uniform sampler2D normalMap;
-layout (binding = 2) uniform samplerCube skybox;
+layout (binding = 2) uniform sampler2D displacement;
+layout (binding = 3) uniform samplerCube skybox;
 
 void main()
 {

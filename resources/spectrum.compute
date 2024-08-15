@@ -1,9 +1,9 @@
 #section common
 #version 450 core
 
-#define SIZE 1024
+#define SIZE 32
 #define LOG_SIZE int(log2(SIZE))
-#define M_PI 3.1415926535897932384
+#define M_PI 3.141592653589793238462643383279502884197169399375105820974
 
 layout (rgba32f, binding = 0) uniform image2D image0;
 layout (rgba32f, binding = 1) uniform image2D image1;
@@ -71,7 +71,10 @@ void main()
                       currentValue.x * rotate.y + currentValue.y * rotate.x);
   
   // Calculate and store the amplitude using the phillips spectrum
-  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  // vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity)) * SIZE * SIZE;
+  vec2 amp = vec2(0.0);
+  if (thread.x == SIZE/2 + 1 && thread.y == SIZE/2 + 1) amp.x = SIZE * SIZE;
+
   imageStore(image0, ivec2(thread), vec4(amp, 0.0, 1.0));
 }
 
@@ -137,5 +140,6 @@ void main()
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 xDisplacement = imageLoad(image0, ivec2(thread)).xy;
   vec2 zDisplacement = imageLoad(image1, ivec2(thread)).xy;
-  imageStore(image0, ivec2(thread), vec4(xDisplacement, zDisplacement));
+  //imageStore(image0, ivec2(thread), vec4(xDisplacement, zDisplacement));
+  imageStore(image0, ivec2(thread), vec4(0.0));
 }

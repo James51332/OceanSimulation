@@ -1,12 +1,12 @@
 #section common
 #version 450 core
 
-#define SIZE 1024
+#define SIZE 32
 #define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
-#define M_PI 3.1415926535897932384
+#define M_PI 3.141592653589793238462643383279502884197169399375105820974
 
-shared vec2 cache[SIZE][NUM_CACHES];
+shared dvec2 cache[SIZE][NUM_CACHES];
 
 layout (rgba32f, binding = 0) uniform image2D image;
 
@@ -36,11 +36,11 @@ uvec3 ifft(uint thread, uint cacheIndex, uint evenIndex, uint oddIndex)
 
     // compute the twiddle factor for combining two dfts
     float twiddleAngle = 2.0 * M_PI * dftElement / fullSize; // making this positive causes iFFT
-    vec2 twiddle = vec2(cos(twiddleAngle), sin(twiddleAngle));
+    dvec2 twiddle = dvec2(cos(twiddleAngle), sin(twiddleAngle));
 
     // retrieve our values and twiddle the odd factor
-    vec2 even = cache[cacheIndex][evenIndex];
-    vec2 odd = cache[cacheIndex][oddIndex];
+    dvec2 even = cache[cacheIndex][evenIndex];
+    dvec2 odd = cache[cacheIndex][oddIndex];
 
     odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y,
                odd.x * twiddle.y + odd.y * twiddle.x);
@@ -79,9 +79,11 @@ void main()
   evenIndex = indices.y;
   oddIndex = indices.z;
 
+  barrier();
+
   // copy our data back into the ssbo
-  imageStore(image, ivec2(evenIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
-  imageStore(image, ivec2(oddIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
+  imageStore(image, ivec2(evenIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][evenIndex] / SIZE, 0.0, 1.0));
+  imageStore(image, ivec2(oddIndex, gl_GlobalInvocationID.y), vec4(cache[cacheIndex][oddIndex] / SIZE, 0.0, 1.0));
 }
 
 #section type(compute) name(verticalIFFT)
@@ -109,7 +111,9 @@ void main()
   evenIndex = indices.y;
   oddIndex = indices.z;
 
+  barrier();
+
   // copy our data back into the ssbo
-  imageStore(image, ivec2(gl_GlobalInvocationID.x, evenIndex), vec4(cache[cacheIndex][evenIndex], 0.0, 1.0));
-  imageStore(image, ivec2(gl_GlobalInvocationID.x, oddIndex), vec4(cache[cacheIndex][oddIndex], 0.0, 1.0));
+  imageStore(image, ivec2(gl_GlobalInvocationID.x, evenIndex), vec4(cache[cacheIndex][evenIndex] / SIZE, 0.0, 1.0));
+  imageStore(image, ivec2(gl_GlobalInvocationID.x, oddIndex), vec4(cache[cacheIndex][oddIndex] / SIZE, 0.0, 1.0));
 }
