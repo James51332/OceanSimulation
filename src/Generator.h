@@ -15,7 +15,7 @@ public:
   ~Generator();
 
   void GenerateSpectrum();
-  void CalculateOcean(float timestep, bool dir);
+  void CalculateOcean(float timestep);
 
   struct OceanSettings
   {
@@ -36,21 +36,25 @@ public:
   Vision::ID GetDisplacementMap() const { return displacementX; }
 
 private:
+  void PerformFFT(Vision::ID image);
+
+private:
   Vision::RenderDevice* renderDevice = nullptr;
   Vision::ID computePS = 0;
 
-  Vision::ID uniformBuffer = 0;
+  Vision::ID oceanUBO = 0;
   OceanSettings oceanSettings;
 
-  Vision::ID fftSettings = 0;
+  Vision::ID fftUBO = 0;
 
-  std::size_t textureSize = 32;
+  std::size_t textureSize = 512;
   Vision::ID heightMap = 0;
   Vision::ID normalMapX = 0;
   Vision::ID normalMapZ = 0;
   Vision::ID displacementX = 0;
   Vision::ID displacementZ = 0;
   Vision::ID gaussianImage = 0;
+  Vision::ID tempImage = 0;
 };
 
 }

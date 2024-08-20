@@ -47,10 +47,7 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->BeginCommandBuffer();
 
   // First we do the waves pass
-  if (Vision::Input::KeyDown(SDL_SCANCODE_Y))
-    generator->GenerateSpectrum();
-  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-    generator->CalculateOcean(timestep, Vision::Input::KeyDown(SDL_SCANCODE_P));
+  generator->CalculateOcean(timestep);
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
