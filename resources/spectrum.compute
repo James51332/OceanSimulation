@@ -119,7 +119,7 @@ void main()
 {
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
-  vec2 waveDir = normalize(waveNumber);
+  vec2 waveDir = waveNumber == vec2(0.0) ? waveNumber : normalize(waveNumber);
 
   // Displacement vector = -i * k/|k| * exp(i * dot(k,x));
   vec2 currentAmp = imageLoad(spectrum, ivec2(thread)).xy;

@@ -25,11 +25,24 @@ Generator::Generator(Vision::RenderDevice *device)
   oceanDesc.Data = &oceanSettings;
   oceanUBO = renderDevice->CreateBuffer(oceanDesc);
 
+  // Create an array to populate our FFT UBO.
+  int numPasses = glm::log2(textureSize) * 2; // horizontal and vertical
+  std::vector<FFTPass> passes;
+  for (int i = 0; i < numPasses; i++)
+  {
+    FFTPass pass;
+    pass.passNumber = i % (numPasses / 2);
+    pass.vertical = i >= (numPasses / 2) ? 1 : 0;
+    pass.totalSize = textureSize;
+    passes.push_back(pass);
+  }
+
   Vision::BufferDesc fftDesc;
+  fftDesc.DebugName = "FFTPass UBO";
   fftDesc.Type = Vision::BufferType::Uniform;
-  fftDesc.Usage = Vision::BufferUsage::Dynamic;
-  fftDesc.Size = sizeof(glm::vec4);
-  fftDesc.Data = nullptr;
+  fftDesc.Usage = Vision::BufferUsage::Static;
+  fftDesc.Size = sizeof(FFTPass) * numPasses;
+  fftDesc.Data = passes.data();
   fftUBO = renderDevice->CreateBuffer(fftDesc);
 }
 
@@ -55,11 +68,11 @@ void Generator::GenerateSpectrum()
   
   // This is a test FFT using our multipass API
   renderDevice->SetBufferData(oceanUBO, &oceanSettings, sizeof(OceanSettings));
-  renderDevice->SetComputeBuffer(oceanUBO);
+  renderDevice->BindBuffer(oceanUBO);
 
   // prepare our spectrum
-  renderDevice->SetComputeImage(heightMap, 0);
-  renderDevice->SetComputeImage(gaussianImage, 1);
+  renderDevice->BindImage2D(heightMap, 0);
+  renderDevice->BindImage2D(gaussianImage, 1);
   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
   renderDevice->ImageBarrier();
 
@@ -75,23 +88,23 @@ void Generator::CalculateOcean(float timestep)
   // Update our ocean's settings
   oceanSettings.time += timestep;
   renderDevice->SetBufferData(oceanUBO, &oceanSettings, sizeof(OceanSettings));
-  renderDevice->SetComputeBuffer(oceanUBO);
+  renderDevice->BindBuffer(oceanUBO);
 
   // Generate the phillips spectrum based on the given time
-  renderDevice->SetComputeImage(heightMap, 0);
-  renderDevice->SetComputeImage(gaussianImage, 1);
+  renderDevice->BindImage2D(heightMap, 0);
+  renderDevice->BindImage2D(gaussianImage, 1);
   renderDevice->DispatchCompute(computePS, "generateSpectrum", {textureSize, textureSize, 1});
 
   // Prepare the normal map FFT
-  renderDevice->SetComputeImage(normalMapX, 0);
-  renderDevice->SetComputeImage(normalMapZ, 1);
-  renderDevice->SetComputeImage(heightMap, 2);
+  renderDevice->BindImage2D(normalMapX, 0);
+  renderDevice->BindImage2D(normalMapZ, 1);
+  renderDevice->BindImage2D(heightMap, 2);
   renderDevice->DispatchCompute(computePS, "prepareNormalMap", { textureSize, textureSize, 1 });
 
   // Prepare the displacement map FFT
-  renderDevice->SetComputeImage(displacementX, 0);
-  renderDevice->SetComputeImage(displacementZ, 1);
-  // renderDevice->SetComputeImage(heightMap, 2); // still bound
+  renderDevice->BindImage2D(displacementX, 0);
+  renderDevice->BindImage2D(displacementZ, 1);
+  // renderDevice->BindImage2D(heightMap, 2); // still bound
   renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", { textureSize, textureSize, 1 });
 
   // Ensure that none of our FFTs operate before we are ready
@@ -107,13 +120,13 @@ void Generator::CalculateOcean(float timestep)
   renderDevice->ImageBarrier();
 
   // Combine the normal maps after fft
-  renderDevice->SetComputeImage(normalMapX, 0);
-  renderDevice->SetComputeImage(normalMapZ, 1);
+  renderDevice->BindImage2D(normalMapX, 0);
+  renderDevice->BindImage2D(normalMapZ, 1);
   renderDevice->DispatchCompute(computePS, "combineNormalMap", { textureSize, textureSize, 1 });
 
   // Also the displacement maps after fft
-  renderDevice->SetComputeImage(displacementX, 0);
-  renderDevice->SetComputeImage(displacementZ, 1);
+  renderDevice->BindImage2D(displacementX, 0);
+  renderDevice->BindImage2D(displacementZ, 1);
   renderDevice->DispatchCompute(computePS, "combineDisplacementMap", { textureSize, textureSize, 1 });
 
   renderDevice->EndComputePass();
@@ -178,22 +191,19 @@ void Generator::CreateTextures()
 
 void Generator::PerformFFT(Vision::ID srcImage)
 {
-  // Switch to FFT settings UBO
-  renderDevice->SetComputeBuffer(fftUBO);
-
   // Function to bind appropriate image
   bool workImgAsInput = false;
   auto bindImages = [&]() 
   {
     if (!workImgAsInput)
     {
-      renderDevice->SetComputeImage(srcImage, 0, Vision::ComputeImageAccess::ReadOnly);
-      renderDevice->SetComputeImage(tempImage, 1, Vision::ComputeImageAccess::WriteOnly);
+      renderDevice->BindImage2D(srcImage, 0, Vision::ImageAccess::ReadOnly);
+      renderDevice->BindImage2D(tempImage, 1, Vision::ImageAccess::WriteOnly);
     }
     else
     {
-      renderDevice->SetComputeImage(srcImage, 1, Vision::ComputeImageAccess::WriteOnly);
-      renderDevice->SetComputeImage(tempImage, 0, Vision::ComputeImageAccess::ReadOnly);
+      renderDevice->BindImage2D(srcImage, 1, Vision::ImageAccess::WriteOnly);
+      renderDevice->BindImage2D(tempImage, 0, Vision::ImageAccess::ReadOnly);
     }
 
     workImgAsInput = !workImgAsInput;
@@ -209,25 +219,11 @@ void Generator::PerformFFT(Vision::ID srcImage)
   renderDevice->DispatchCompute(computePS, "imageReversal", { textureSize, textureSize, 1 });
   renderDevice->ImageBarrier();
 
-  // Horizontal FFT
-  int logSize = glm::log2(textureSize);
-  for (int i = 0; i < logSize; i++)
+  // Perform all of our passes
+  int numPasses = glm::log2(textureSize) * 2;
+  for (int i = 0; i < numPasses; i++)
   {
-    glm::ivec4 settings = glm::ivec4(i, false, 0, 0);
-    renderDevice->SetBufferData(fftUBO, &settings, sizeof(glm::ivec4));
-    renderDevice->SetComputeBuffer(fftUBO);
-
-    bindImages();
-    renderDevice->DispatchCompute(computePS, "fft", { textureSize, 1, 1 });
-    renderDevice->ImageBarrier();
-  }
-
-  // Vertical FFT
-  for (int i = 0; i < logSize; i++)
-  {
-    glm::ivec4 settings = glm::ivec4(i, true, 0, 0);
-    renderDevice->SetBufferData(fftUBO, &settings, sizeof(glm::ivec4));
-    renderDevice->SetComputeBuffer(fftUBO);
+    renderDevice->BindBuffer(fftUBO, 0, i * sizeof(FFTPass), sizeof(FFTPass));
 
     bindImages();
     renderDevice->DispatchCompute(computePS, "fft", { textureSize, 1, 1 });

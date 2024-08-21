@@ -45,6 +45,19 @@ private:
   Vision::ID oceanUBO = 0;
   OceanSettings oceanSettings;
 
+  // Since our UBOs are persistent memory, and their
+  // is not a great API to set tmp memory (e.g. pushConstants,
+  // glUniform, or setBytes) in Vision, We'll take the approach of
+  // shifting our offset in the FFT UBO for each shader invocation
+  // This also means that the memory doesn't need to change, and
+  // we can fill our UBO at load-time.
+  struct FFTPass
+  {
+    int passNumber = 0;
+    uint vertical = false;
+    int totalSize = 0;
+    int dummy = 0;
+  };
   Vision::ID fftUBO = 0;
 
   std::size_t textureSize = 512;
