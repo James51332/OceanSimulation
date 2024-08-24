@@ -14,8 +14,7 @@ public:
   Generator(Vision::RenderDevice* device);
   ~Generator();
 
-  void GenerateSpectrum();
-  void CalculateOcean(float timestep);
+  void CalculateOcean(float timestep, bool updateOcean = false);
 
   struct OceanSettings
   {
@@ -37,6 +36,8 @@ public:
 
 private:
   void PerformFFT(Vision::ID image);
+  void GenerateNoise();
+  void GenerateSpectrum();
 
 private:
   Vision::RenderDevice* renderDevice = nullptr;
@@ -44,6 +45,7 @@ private:
 
   Vision::ID oceanUBO = 0;
   OceanSettings oceanSettings;
+  bool updateSpectrum = true;
 
   // Since our UBOs are persistent memory, and their
   // is not a great API to set tmp memory (e.g. pushConstants,
@@ -67,6 +69,7 @@ private:
   Vision::ID displacementX = 0;
   Vision::ID displacementZ = 0;
   Vision::ID gaussianImage = 0;
+  Vision::ID initialSpectrum = 0;
   Vision::ID tempImage = 0;
 };
 

@@ -5,8 +5,8 @@
 #define LOG_SIZE int(log2(SIZE))
 #define M_PI 3.141592653589793238462643383279502884197169399375105820974
 
-layout (rgba32f, binding = 0) uniform image2D image0;
-layout (rgba32f, binding = 1) uniform image2D image1;
+layout (rgba32f, binding = 0) uniform readonly image2D imgInput;
+layout (rgba32f, binding = 1) uniform writeonly image2D imgOutput;
 
 layout (std140, binding = 0) uniform spectrumSettings
 {
@@ -22,6 +22,12 @@ vec2 threadToWaveNumber(vec2 thread)
 {
   vec2 frequency = thread - SIZE/2;
   return 2.0 * M_PI * frequency / planeSize;
+}
+
+vec2 complexMultiply(vec2 lhs, vec2 rhs)
+{
+  return vec2(lhs.x * rhs.x - lhs.y * rhs.y,
+              lhs.x * rhs.y + lhs.y * rhs.x);
 }
 
 #section type(compute) name(generateSpectrum)
@@ -51,6 +57,21 @@ float phillips(vec2 waveNumber, vec2 windVelocity, float gravity)
   return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2;// * exp(-waveNumberLength2 * l2);
 }
 
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+  vec2 waveNumber = threadToWaveNumber(thread);
+
+  // Fetch a random Gaussian value to model probability of wave existing
+  vec2 currentValue = imageLoad(imgInput, ivec2(thread)).xy;
+  
+  // Calculate and store the amplitude using the phillips spectrum
+  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  imageStore(imgOutput, ivec2(thread), vec4(amp, 0.0, 1.0));
+}
+
+#section type(compute) name(propagateWaves)
+
 float dispersion(vec2 waveNumber, float gravity)
 {
   return sqrt(gravity * length(waveNumber));
@@ -60,24 +81,27 @@ void main()
 {
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
-
-  // Fetch a random Gaussian value to model probability of wave existing
-  vec2 currentValue = imageLoad(image1, ivec2(thread)).xy;
-
-  // Shift our wave through space based on the current time
-  float phase = time * dispersion(waveNumber, gravity);
-  vec2 rotate = vec2(cos(phase), sin(phase));
-  currentValue = vec2(currentValue.x * rotate.x - currentValue.y * rotate.y,
-                      currentValue.x * rotate.y + currentValue.y * rotate.x);
   
-  // Calculate and store the amplitude using the phillips spectrum
-  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
-  imageStore(image0, ivec2(thread), vec4(amp, 0.0, 1.0));
+  // This is the formula given in tessendorf's paper.
+  //   h ̃0(k) exp {iω(k)t}
+  // + h ̃∗0(−k)exp{−iω(k)t}
+
+  vec2 amplitude = imageLoad(imgInput, ivec2(thread)).xy;
+  float phase = dispersion(waveNumber, gravity) * time;
+  vec2 wave = vec2(cos(phase), sin(phase));
+  amplitude = complexMultiply(amplitude, wave);
+
+  vec2 oppAmplitude = imageLoad(imgInput, ivec2(SIZE - thread)).xy;
+  oppAmplitude.y *= -1.0;
+  wave.y *= -1.0;
+  oppAmplitude = complexMultiply(oppAmplitude, wave);
+
+  imageStore(imgOutput, ivec2(thread), vec4(amplitude + oppAmplitude, 0.0, 1.0));
 }
 
 #section type(compute) name(prepareNormalMap)
 
-layout (rgba32f, binding = 2) uniform image2D spectrum;
+layout (rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
 
 void main()
 {
@@ -85,35 +109,37 @@ void main()
   vec2 waveNumber = threadToWaveNumber(thread);
 
   // Determine this waves contribution to slope of final image
-  vec2 currentAmp = imageLoad(spectrum, ivec2(thread)).xy;
+  vec2 currentAmp = imageLoad(imgInput, ivec2(thread)).xy;
   vec2 xDerivative = waveNumber.x * vec2(-currentAmp.y, currentAmp.x);
   vec2 zDerivative = waveNumber.y * vec2(-currentAmp.y, currentAmp.x);
 
-  imageStore(image0, ivec2(thread), vec4(xDerivative, 0.0, 1.0));
-  imageStore(image1, ivec2(thread), vec4(zDerivative, 0.0, 1.0));
+  imageStore(imgOutput, ivec2(thread), vec4(xDerivative, 0.0, 1.0));
+  imageStore(imgOutput2, ivec2(thread), vec4(zDerivative, 0.0, 1.0));
 }
 
 #section type(compute) name(combineNormalMap)
+
+layout (rgba32f, binding = 2) uniform image2D imgInOut;
 
 void main()
 {
   ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
 
   // Get the gradient in each direction and construct binormal and tangent vectors
-  float xDerivative = imageLoad(image0, thread).x;
+  float xDerivative = imageLoad(imgInOut, thread).x;
   vec3 binormal = vec3(1.0, xDerivative, 0.0);
   
-  float zDerivative = imageLoad(image1, thread).x;
+  float zDerivative = imageLoad(imgInput, thread).x;
   vec3 tangent = vec3(0.0, zDerivative, 1.0);
   
   // Obtain normal vector orthogonal to both via cross product
   vec3 normal = normalize(cross(tangent, binormal));
-  imageStore(image0, thread, vec4(normal, 1.0));
+  imageStore(imgInOut, thread, vec4(normal, 1.0));
 }
 
 #section type(compute) name(prepareDisplacementMap)
 
-layout (rgba32f, binding = 2) uniform image2D spectrum;
+layout (rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
 
 void main()
 {
@@ -122,20 +148,22 @@ void main()
   vec2 waveDir = waveNumber == vec2(0.0) ? waveNumber : normalize(waveNumber);
 
   // Displacement vector = -i * k/|k| * exp(i * dot(k,x));
-  vec2 currentAmp = imageLoad(spectrum, ivec2(thread)).xy;
+  vec2 currentAmp = imageLoad(imgInput, ivec2(thread)).xy;
   vec2 xDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
   vec2 zDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
 
-  imageStore(image0, ivec2(thread), vec4(xDisplacementSignal, 0.0, 1.0));
-  imageStore(image1, ivec2(thread), vec4(zDisplacementSignal, 0.0, 1.0));
+  imageStore(imgOutput, ivec2(thread), vec4(xDisplacementSignal, 0.0, 1.0));
+  imageStore(imgOutput2, ivec2(thread), vec4(zDisplacementSignal, 0.0, 1.0));
 }
 
 #section type(compute) name(combineDisplacementMap)
 
+layout (rgba32f, binding = 2) uniform image2D imgInOut;
+
 void main()
 {
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 xDisplacement = imageLoad(image0, ivec2(thread)).xy;
-  vec2 zDisplacement = imageLoad(image1, ivec2(thread)).xy;
-  imageStore(image0, ivec2(thread), vec4(xDisplacement, zDisplacement));
+  vec2 xDisplacement = imageLoad(imgInOut, ivec2(thread)).xy;
+  vec2 zDisplacement = imageLoad(imgInput, ivec2(thread)).xy;
+  imageStore(imgInOut, ivec2(thread), vec4(xDisplacement, zDisplacement));
 }
