@@ -11,7 +11,7 @@ namespace Waves
 class Generator
 {
 public:
-  Generator(Vision::RenderDevice* device);
+  Generator(Vision::RenderDevice *device);
   ~Generator();
 
   void CalculateOcean(float timestep, bool updateOcean = false);
@@ -25,7 +25,7 @@ public:
     glm::vec2 windVelocity = glm::vec2(3.0f, 5.0f);
     glm::vec2 dummy;
   };
-  OceanSettings& GetOceanSettings() { return oceanSettings; }
+  OceanSettings &GetOceanSettings() { return oceanSettings; }
 
   void LoadShaders();
 
@@ -40,7 +40,7 @@ private:
   void GenerateSpectrum();
 
 private:
-  Vision::RenderDevice* renderDevice = nullptr;
+  Vision::RenderDevice *renderDevice = nullptr;
   Vision::ID computePS = 0;
 
   Vision::ID oceanUBO = 0;
@@ -73,4 +73,4 @@ private:
   Vision::ID tempImage = 0;
 };
 
-}
+} // namespace Waves

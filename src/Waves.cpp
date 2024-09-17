@@ -8,7 +8,7 @@
 
 #include "core/Input.h"
 
-namespace Waves 
+namespace Waves
 {
 
 WaveApp::WaveApp()
@@ -21,7 +21,7 @@ WaveApp::WaveApp()
   rpDesc.Framebuffer = 0;
   rpDesc.LoadOp = Vision::LoadOp::Clear;
   rpDesc.StoreOp = Vision::StoreOp::Store;
-  rpDesc.ClearColor = { 0.5f, 0.5f, 0.5f, 1.0f };
+  rpDesc.ClearColor = {0.5f, 0.5f, 0.5f, 1.0f};
   renderPass = renderDevice->CreateRenderPass(rpDesc);
 }
 
@@ -51,7 +51,8 @@ void WaveApp::OnUpdate(float timestep)
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
-  waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap(), generator->GetDisplacementMap());
+  waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap(),
+                       generator->GetDisplacementMap());
   DrawUI();
   renderDevice->EndRenderPass();
 
@@ -62,29 +63,29 @@ void WaveApp::OnUpdate(float timestep)
 
 void WaveApp::DrawUI()
 {
-    uiRenderer->Begin();
-    if (ImGui::Begin("TextureViewer"))
-    {
-      ImGui::Image((ImTextureID)generator->GetHeightMap(), {400.0f, 400.0f});
-      ImGui::Image((ImTextureID)generator->GetNormalMap(), {400.0f, 400.0f});
-    }
-    ImGui::End();
-
-    if (ImGui::Begin("Ocean Settings"))
-    {
-      Generator::OceanSettings& settings = generator->GetOceanSettings();
-      ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
-      ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
-      ImGui::DragFloat("Scale", &settings.scale, 0.0005f);
-    }
-    ImGui::End();
-
-    uiRenderer->End();
+  uiRenderer->Begin();
+  if (ImGui::Begin("TextureViewer"))
+  {
+    ImGui::Image((ImTextureID)generator->GetHeightMap(), {400.0f, 400.0f});
+    ImGui::Image((ImTextureID)generator->GetNormalMap(), {400.0f, 400.0f});
   }
+  ImGui::End();
+
+  if (ImGui::Begin("Ocean Settings"))
+  {
+    Generator::OceanSettings &settings = generator->GetOceanSettings();
+    ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
+    ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
+    ImGui::DragFloat("Scale", &settings.scale, 0.0005f);
+  }
+  ImGui::End();
+
+  uiRenderer->End();
+}
 
 void WaveApp::OnResize(float width, float height)
 {
   waveRenderer->Resize(width, height);
 }
 
-}
+} // namespace Waves

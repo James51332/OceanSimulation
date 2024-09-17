@@ -20,8 +20,8 @@ public:
   void DrawUI();
 
 private:
-  Generator* generator = nullptr;
-  WaveRenderer* waveRenderer = nullptr;
+  Generator *generator = nullptr;
+  WaveRenderer *waveRenderer = nullptr;
 
   Vision::ID renderPass = 0;
 
@@ -33,4 +33,4 @@ private:
   float ampDamp = 0.75f;
 };
 
-}
+} // namespace Waves

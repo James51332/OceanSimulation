@@ -1,18 +1,17 @@
 #include "Generator.h"
 
-#include <glm/gtc/random.hpp>
 #include <glm/gtc/integer.hpp>
+#include <glm/gtc/random.hpp>
 #include <iostream>
 
 #include "renderer/shader/ShaderCompiler.h"
 
 #include "core/Input.h"
 
-    namespace Waves
+namespace Waves
 {
 
-Generator::Generator(Vision::RenderDevice *device)
-  : renderDevice(device)
+Generator::Generator(Vision::RenderDevice *device) : renderDevice(device)
 {
   LoadShaders();
   CreateTextures();
@@ -65,16 +64,16 @@ Generator::~Generator()
 // void Generator::GenerateSpectrum()
 // {
 //   renderDevice->BeginComputePass();
-  
+
 //   // This is a test FFT using our multipass API
-//   renderDevice->SetBufferData(oceanUBO, &oceanSettings, sizeof(OceanSettings));
-//   renderDevice->BindBuffer(oceanUBO);
+//   renderDevice->SetBufferData(oceanUBO, &oceanSettings,
+//   sizeof(OceanSettings)); renderDevice->BindBuffer(oceanUBO);
 
 //   // prepare our spectrum
 //   renderDevice->BindImage2D(heightMap, 0);
 //   renderDevice->BindImage2D(gaussianImage, 1);
-//   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
-//   renderDevice->ImageBarrier();
+//   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize,
+//   textureSize, 1 }); renderDevice->ImageBarrier();
 
 //   PerformFFT(heightMap);
 
@@ -91,7 +90,7 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   renderDevice->BindBuffer(oceanUBO);
 
   // Update the spectrum if needed
-  //if (updateSpectrum || userUpdatedSpectrum)
+  // if (updateSpectrum || userUpdatedSpectrum)
   {
     updateSpectrum = false;
     GenerateSpectrum();
@@ -106,13 +105,13 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   renderDevice->BindImage2D(heightMap, 0);
   renderDevice->BindImage2D(normalMapX, 1);
   renderDevice->BindImage2D(normalMapZ, 2);
-  renderDevice->DispatchCompute(computePS, "prepareNormalMap", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "prepareNormalMap", {textureSize, textureSize, 1});
 
   // Prepare the displacement map FFT
   renderDevice->BindImage2D(displacementX, 1);
   renderDevice->BindImage2D(displacementZ, 2);
   // renderDevice->BindImage2D(heightMap, 2); // still bound
-  renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", {textureSize, textureSize, 1});
 
   // Ensure that none of our FFTs operate before we are ready
   renderDevice->ImageBarrier();
@@ -129,12 +128,12 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   // Combine the normal maps after fft
   renderDevice->BindImage2D(normalMapX, 2);
   renderDevice->BindImage2D(normalMapZ, 0);
-  renderDevice->DispatchCompute(computePS, "combineNormalMap", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "combineNormalMap", {textureSize, textureSize, 1});
 
   // Also the displacement maps after fft
   renderDevice->BindImage2D(displacementX, 2);
   renderDevice->BindImage2D(displacementZ, 0);
-  renderDevice->DispatchCompute(computePS, "combineDisplacementMap", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "combineDisplacementMap", {textureSize, textureSize, 1});
 
   renderDevice->EndComputePass();
 }
@@ -192,7 +191,7 @@ void Generator::PerformFFT(Vision::ID srcImage)
 {
   // Function to bind appropriate image
   bool workImgAsInput = false;
-  auto bindImages = [&]() 
+  auto bindImages = [&]()
   {
     if (!workImgAsInput)
     {
@@ -210,12 +209,12 @@ void Generator::PerformFFT(Vision::ID srcImage)
 
   // Swap low frequencies to edges
   bindImages();
-  renderDevice->DispatchCompute(computePS, "fftShift", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "fftShift", {textureSize, textureSize, 1});
   renderDevice->ImageBarrier();
 
   // Bit-reversal to prepare for Cooley-Tukey FFT
   bindImages();
-  renderDevice->DispatchCompute(computePS, "imageReversal", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "imageReversal", {textureSize, textureSize, 1});
   renderDevice->ImageBarrier();
 
   // Perform all of our passes
@@ -225,7 +224,7 @@ void Generator::PerformFFT(Vision::ID srcImage)
     renderDevice->BindBuffer(fftUBO, 0, i * sizeof(FFTPass), sizeof(FFTPass));
 
     bindImages();
-    renderDevice->DispatchCompute(computePS, "fft", { textureSize, 1, 1 });
+    renderDevice->DispatchCompute(computePS, "fft", {textureSize, 1, 1});
     renderDevice->ImageBarrier();
   }
 }
@@ -249,8 +248,8 @@ void Generator::GenerateSpectrum()
 {
   renderDevice->BindImage2D(gaussianImage, 0, Vision::ImageAccess::ReadOnly);
   renderDevice->BindImage2D(initialSpectrum, 1, Vision::ImageAccess::WriteOnly);
-  renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize, textureSize, 1 });
+  renderDevice->DispatchCompute(computePS, "generateSpectrum", {textureSize, textureSize, 1});
   renderDevice->ImageBarrier();
 }
 
-}
+} // namespace Waves

@@ -6,8 +6,8 @@
 namespace Waves
 {
 
-WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* render, float w, float h)
-  : renderDevice(device), renderer(render), width(w), height(h)
+WaveRenderer::WaveRenderer(Vision::RenderDevice *device, Vision::Renderer *render, float w, float h)
+    : renderDevice(device), renderer(render), width(w), height(h)
 {
   camera = new Vision::PerspectiveCamera(width, height);
 
@@ -65,18 +65,20 @@ void WaveRenderer::GeneratePipelines()
   // Create the shaders by loading from disk and compiling
   Vision::ShaderCompiler compiler;
   std::vector<Vision::ShaderSPIRV> waveShaders = compiler.CompileFile("resources/waveShader.glsl");
-  std::vector<Vision::ShaderSPIRV> skyboxShaders =  compiler.CompileFile("resources/skyboxShader.glsl");
+  std::vector<Vision::ShaderSPIRV> skyboxShaders =
+      compiler.CompileFile("resources/skyboxShader.glsl");
 
   // Create our wave pipeline state
   {
     Vision::RenderPipelineDesc psDesc;
     psDesc.VertexShader = waveShaders[0];
     psDesc.PixelShader = waveShaders[1];
-    psDesc.Layouts = { Vision::BufferLayout({
-      { Vision::ShaderDataType::Float3, "Position"},
-      { Vision::ShaderDataType::Float3, "Normal" },
-      { Vision::ShaderDataType::Float4, "Color" },
-      { Vision::ShaderDataType::Float2, "UV" }}) 
+    psDesc.Layouts = {
+        Vision::BufferLayout({{Vision::ShaderDataType::Float3, "Position"},
+                              {Vision::ShaderDataType::Float3, "Normal"},
+                              {Vision::ShaderDataType::Float4, "Color"},
+                              {Vision::ShaderDataType::Float2, "UV"}}
+        )
     };
     wavePS = renderDevice->CreateRenderPipeline(psDesc);
   }
@@ -86,19 +88,20 @@ void WaveRenderer::GeneratePipelines()
     Vision::RenderPipelineDesc psDesc;
     psDesc.VertexShader = skyboxShaders[0];
     psDesc.PixelShader = skyboxShaders[1];
-    psDesc.Layouts = { Vision::BufferLayout({
-      { Vision::ShaderDataType::Float3, "Position"},
-      { Vision::ShaderDataType::Float3, "Normal" },
-      { Vision::ShaderDataType::Float4, "Color" },
-      { Vision::ShaderDataType::Float2, "UV" }}) 
+    psDesc.Layouts = {
+        Vision::BufferLayout({{Vision::ShaderDataType::Float3, "Position"},
+                              {Vision::ShaderDataType::Float3, "Normal"},
+                              {Vision::ShaderDataType::Float4, "Color"},
+                              {Vision::ShaderDataType::Float2, "UV"}}
+        )
     };
-    
+
     // We set the depth of all fragments to 1, so only pixels that weren't
-    // previously rendered to will be written by the depth map, but we do in fact
-    // want to discard the initial pixels with a depth of 1.
-    psDesc.DepthFunc = Vision::DepthFunc::LessEqual; 
-    //psDesc.DepthTest = true;
-    
+    // previously rendered to will be written by the depth map, but we do in
+    // fact want to discard the initial pixels with a depth of 1.
+    psDesc.DepthFunc = Vision::DepthFunc::LessEqual;
+    // psDesc.DepthTest = true;
+
     skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }
 }
@@ -106,21 +109,14 @@ void WaveRenderer::GeneratePipelines()
 void WaveRenderer::GenerateTextures()
 {
   Vision::CubemapDesc cubemapDesc;
-  cubemapDesc.Textures = {
-    "resources/skybox/bluecloud_ft.jpg",
-    "resources/skybox/bluecloud_bk.jpg",
-    "resources/skybox/bluecloud_up.jpg",
-    "resources/skybox/bluecloud_dn.jpg",
-    "resources/skybox/bluecloud_rt.jpg",
-    "resources/skybox/bluecloud_lf.jpg"
-  };
+  cubemapDesc.Textures = {"resources/skybox/bluecloud_ft.jpg", "resources/skybox/bluecloud_bk.jpg",
+                          "resources/skybox/bluecloud_up.jpg", "resources/skybox/bluecloud_dn.jpg",
+                          "resources/skybox/bluecloud_rt.jpg", "resources/skybox/bluecloud_lf.jpg"};
   skyboxTexture = renderDevice->CreateCubemap(cubemapDesc);
 }
 
 void WaveRenderer::GenerateBuffers()
 {
-
 }
 
-
-}
+} // namespace Waves
