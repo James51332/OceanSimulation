@@ -1,5 +1,5 @@
 # OceanSimulation
 
-A sum of sines ocean simulation built in C++.
+An FFT ocean simulation built from scratch in C++.
 
 ![Ocean Waves](screenshots/waves.png)
