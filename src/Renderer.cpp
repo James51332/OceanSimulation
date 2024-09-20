@@ -9,7 +9,7 @@ namespace Waves
 WaveRenderer::WaveRenderer(Vision::RenderDevice *device, Vision::Renderer *render, float w, float h)
     : renderDevice(device), renderer(render), width(w), height(h)
 {
-  camera = new Vision::PerspectiveCamera(width, height);
+  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 500.0f);
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
@@ -58,6 +58,17 @@ void WaveRenderer::Resize(float w, float h)
   camera->SetWindowSize(w, h);
   width = w;
   height = h;
+}
+
+void WaveRenderer::ReloadShaders()
+{
+  if (wavePS)
+  {
+    renderDevice->DestroyPipeline(wavePS);
+    renderDevice->DestroyPipeline(skyboxPS);
+  }
+
+  GeneratePipelines();
 }
 
 void WaveRenderer::GeneratePipelines()

@@ -1,10 +1,10 @@
 #section type(vertex)
 #version 450 core
 
-layout (location = 0) in vec3 a_Pos;
-layout (location = 3) in vec2 a_UV;
+layout(location = 0) in vec3 a_Pos;
+layout(location = 3) in vec2 a_UV;
 
-layout (std140, binding = 0) uniform pushConstants
+layout(std140, binding = 0) uniform pushConstants
 {
   mat4 u_View;
   mat4 u_Projection;
@@ -14,24 +14,49 @@ layout (std140, binding = 0) uniform pushConstants
   float dummy;
 };
 
-layout (binding = 0) uniform sampler2D heightMap;
-layout (binding = 1) uniform sampler2D normalMap;
-layout (binding = 2) uniform sampler2D displacement;
-layout (binding = 3) uniform samplerCube skybox;
+layout(binding = 0) uniform sampler2D heightMap;
+layout(binding = 1) uniform sampler2D normalMap;
+layout(binding = 2) uniform sampler2D displacement;
+layout(binding = 3) uniform samplerCube skybox;
 
 out vec2 v_UV;
 out vec3 v_WorldPos;
 out vec3 v_CameraPos;
 
 void main()
-{ 
+{
+  // Our approach to tesselation is to make the grid more sparse as we increase our distance.
+  // Since as distance increases, portion of eye spaces decrease inversely, we can invert our
+  // distances to transform our plane into a plane with a roughly constant eye-space density.
   vec3 pos = a_Pos;
-  pos.xz += texture(displacement, a_UV).xz;
-  pos.y += texture(heightMap, a_UV).r;
+
+  // Prepare our values for the inversion.
+  float maxDistance = 50.0; // Size of our plane per meter of camera height.
+  float planeSize = 40.0;   // The size of the initial plane mesh. (Could make this one)
+
+  // Use our adjusted formula (separates inside points from outside points)
+  float unchangedDistance = 14.0;
+  float linearScalar = 0.2;
+  float growthFactor = 0.2;
+  vec2 powFactor = vec2(pow(1 + growthFactor, abs(pos.x)), pow(1 + growthFactor, abs(pos.z)));
+  pos.xz = pos.xz * powFactor * linearScalar;
+
+  // Scale and shift based on the position of the camera.
+  vec3 cameraPos = inverse(u_View)[3].xyz;
+  pos.xz *= max(cameraPos.y, 0.5);
+  pos.xz += cameraPos.xz;
+
+  // We have to adjust for our changed coordinates since our UV values are now useless.
+  float textureSize = 40.0;       // TODO: Use a uniform (right now we have 20m x 20m plane)
+  vec2 uv = pos.xz / textureSize; // Tile after 20m and center around origin
+
+  // Now we can continue as before.
+  pos.xz += texture(displacement, uv).xz;
+  pos.y += texture(heightMap, uv).r;
   gl_Position = u_ViewProjection * vec4(pos, 1.0);
 
-  v_UV = a_UV;
-  v_WorldPos = a_Pos.xyz;
+  v_UV = uv;
+  v_WorldPos = pos.xyz;
   v_CameraPos = inverse(u_View)[3].xyz;
 }
 
@@ -44,10 +69,10 @@ in vec3 v_CameraPos;
 
 out vec4 fragColor;
 
-layout (binding = 0) uniform sampler2D heightMap;
-layout (binding = 1) uniform sampler2D normalMap;
-layout (binding = 2) uniform sampler2D displacement;
-layout (binding = 3) uniform samplerCube skybox;
+layout(binding = 0) uniform sampler2D heightMap;
+layout(binding = 1) uniform sampler2D normalMap;
+layout(binding = 2) uniform sampler2D displacement;
+layout(binding = 3) uniform samplerCube skybox;
 
 void main()
 {

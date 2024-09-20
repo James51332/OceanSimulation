@@ -38,7 +38,10 @@ void WaveApp::OnUpdate(float timestep)
   waveRenderer->UpdateCamera(timestep);
 
   if (Vision::Input::KeyPress(SDL_SCANCODE_R)) // reload shaders
+  {
     generator->LoadShaders();
+    waveRenderer->ReloadShaders();
+  }
 
   if (!ShouldRender())
     return;
