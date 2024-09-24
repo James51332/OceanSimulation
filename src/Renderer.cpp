@@ -1,5 +1,7 @@
 #include "Renderer.h"
 
+#include "core/Input.h"
+
 #include "renderer/MeshGenerator.h"
 #include "renderer/shader/ShaderCompiler.h"
 
@@ -21,10 +23,11 @@ WaveRenderer::WaveRenderer(Vision::RenderDevice *device, Vision::Renderer *rende
 
 WaveRenderer::~WaveRenderer()
 {
-  // Destory all resources
+  // Destery all resources
   renderDevice->DestroyCubemap(skyboxTexture);
 
   renderDevice->DestroyPipeline(wavePS);
+  renderDevice->DestroyPipeline(transparentPS);
   renderDevice->DestroyPipeline(skyboxPS);
 
   delete planeMesh;
@@ -45,7 +48,11 @@ void WaveRenderer::Render(ID heightMap, ID normalMap, ID displacementMap)
   renderDevice->BindTexture2D(normalMap, 1);
   renderDevice->BindTexture2D(displacementMap, 2);
   renderDevice->BindCubemap(skyboxTexture, 3);
-  renderer->DrawMesh(planeMesh, wavePS);
+
+  if (!Vision::Input::KeyDown(SDL_SCANCODE_T))
+    renderer->DrawMesh(planeMesh, wavePS);
+  else
+    renderer->DrawMesh(planeMesh, transparentPS);
 
   renderDevice->BindCubemap(skyboxTexture);
   renderer->DrawMesh(cubeMesh, skyboxPS);
@@ -65,6 +72,7 @@ void WaveRenderer::ReloadShaders()
   if (wavePS)
   {
     renderDevice->DestroyPipeline(wavePS);
+    renderDevice->DestroyPipeline(transparentPS);
     renderDevice->DestroyPipeline(skyboxPS);
   }
 
@@ -92,6 +100,10 @@ void WaveRenderer::GeneratePipelines()
         )
     };
     wavePS = renderDevice->CreateRenderPipeline(psDesc);
+
+    // Create a second pipeline state for rendering the mesh of our water.
+    psDesc.FillMode = Vision::GeometryFillMode::Line;
+    transparentPS = renderDevice->CreateRenderPipeline(psDesc);
   }
 
   // Create our skybox pipelines state
