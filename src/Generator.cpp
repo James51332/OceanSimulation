@@ -172,6 +172,8 @@ void Generator::CreateTextures()
   desc.PixelType = Vision::PixelType::RGBA32Float;
   desc.MinFilter = Vision::MinMagFilter::Linear;
   desc.MagFilter = Vision::MinMagFilter::Linear;
+  desc.AddressModeS = Vision::EdgeAddressMode::Repeat;
+  desc.AddressModeT = Vision::EdgeAddressMode::Repeat;
   desc.WriteOnly = false;
   desc.Data = nullptr;
 

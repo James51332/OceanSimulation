@@ -35,7 +35,6 @@ void main()
   float planeSize = 40.0;   // The size of the initial plane mesh. (Could make this one)
 
   // Use our adjusted formula (separates inside points from outside points)
-  float unchangedDistance = 14.0;
   float linearScalar = 0.2;
   float growthFactor = 0.2;
   vec2 powFactor = vec2(pow(1 + growthFactor, abs(pos.x)), pow(1 + growthFactor, abs(pos.z)));
