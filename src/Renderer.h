@@ -19,7 +19,7 @@ public:
   void Render(ID heightMap, ID normalMap, ID displacement);
   void Resize(float width, float height);
 
-  void ReloadShaders();
+  void LoadShaders();
 
 private:
   void GeneratePipelines();

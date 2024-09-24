@@ -37,19 +37,22 @@ void WaveApp::OnUpdate(float timestep)
 {
   waveRenderer->UpdateCamera(timestep);
 
-  if (Vision::Input::KeyPress(SDL_SCANCODE_R)) // reload shaders
+  // Press R to reload shaders
+  if (Vision::Input::KeyPress(SDL_SCANCODE_R))
   {
     generator->LoadShaders();
-    waveRenderer->ReloadShaders();
+    waveRenderer->LoadShaders();
   }
 
+  // If our application is occluded, we skip the rendering to avoid flooding memory with commands
+  // that won't be executed.
   if (!ShouldRender())
     return;
 
   // Begin recording commands
   renderDevice->BeginCommandBuffer();
 
-  // First we do the waves pass
+  // First, we do the waves pass
   generator->CalculateOcean(timestep);
 
   // Then we do our the render pass

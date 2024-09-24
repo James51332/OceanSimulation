@@ -67,7 +67,7 @@ void WaveRenderer::Resize(float w, float h)
   height = h;
 }
 
-void WaveRenderer::ReloadShaders()
+void WaveRenderer::LoadShaders()
 {
   if (wavePS)
   {
