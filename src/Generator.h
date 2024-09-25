@@ -4,6 +4,8 @@
 
 #include "renderer/RenderDevice.h"
 
+#include "FFTCalculator.h"
+
 namespace Waves
 {
 
@@ -11,7 +13,7 @@ namespace Waves
 class Generator
 {
 public:
-  Generator(Vision::RenderDevice *device);
+  Generator(Vision::RenderDevice* device, FFTCalculator* calc);
   ~Generator();
 
   void CalculateOcean(float timestep, bool updateOcean = false);
@@ -25,7 +27,7 @@ public:
     glm::vec2 windVelocity = glm::vec2(3.0f, 5.0f);
     glm::vec2 dummy;
   };
-  OceanSettings &GetOceanSettings() { return oceanSettings; }
+  OceanSettings& GetOceanSettings() { return oceanSettings; }
 
   void LoadShaders();
 
@@ -35,34 +37,19 @@ public:
   Vision::ID GetDisplacementMap() const { return displacementX; }
 
 private:
-  void PerformFFT(Vision::ID image);
   void GenerateNoise();
   void GenerateSpectrum();
 
 private:
-  Vision::RenderDevice *renderDevice = nullptr;
+  Vision::RenderDevice* renderDevice = nullptr;
+  FFTCalculator* fftCalc = nullptr;
   Vision::ID computePS = 0;
 
   Vision::ID oceanUBO = 0;
   OceanSettings oceanSettings;
   bool updateSpectrum = true;
 
-  // Since our UBOs are persistent memory, and their
-  // is not a great API to set tmp memory (e.g. pushConstants,
-  // glUniform, or setBytes) in Vision, We'll take the approach of
-  // shifting our offset in the FFT UBO for each shader invocation
-  // This also means that the memory doesn't need to change, and
-  // we can fill our UBO at load-time.
-  struct FFTPass
-  {
-    int passNumber = 0;
-    uint vertical = false;
-    int totalSize = 0;
-    int dummy = 0;
-  };
-  Vision::ID fftUBO = 0;
-
-  std::size_t textureSize = 512;
+  std::size_t textureSize;
   Vision::ID heightMap = 0;
   Vision::ID normalMapX = 0;
   Vision::ID normalMapZ = 0;

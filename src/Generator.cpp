@@ -11,7 +11,8 @@
 namespace Waves
 {
 
-Generator::Generator(Vision::RenderDevice *device) : renderDevice(device)
+Generator::Generator(Vision::RenderDevice* device, FFTCalculator* calc)
+  : renderDevice(device), fftCalc(calc), textureSize(calc->GetTextureResolution())
 {
   LoadShaders();
   CreateTextures();
@@ -23,26 +24,6 @@ Generator::Generator(Vision::RenderDevice *device) : renderDevice(device)
   oceanDesc.Size = sizeof(OceanSettings);
   oceanDesc.Data = &oceanSettings;
   oceanUBO = renderDevice->CreateBuffer(oceanDesc);
-
-  // Create an array to populate our FFT UBO.
-  int numPasses = glm::log2(textureSize) * 2; // horizontal and vertical
-  std::vector<FFTPass> passes;
-  for (int i = 0; i < numPasses; i++)
-  {
-    FFTPass pass;
-    pass.passNumber = i % (numPasses / 2);
-    pass.vertical = i >= (numPasses / 2) ? 1 : 0;
-    pass.totalSize = textureSize;
-    passes.push_back(pass);
-  }
-
-  Vision::BufferDesc fftDesc;
-  fftDesc.DebugName = "FFTPass UBO";
-  fftDesc.Type = Vision::BufferType::Uniform;
-  fftDesc.Usage = Vision::BufferUsage::Static;
-  fftDesc.Size = sizeof(FFTPass) * numPasses;
-  fftDesc.Data = passes.data();
-  fftUBO = renderDevice->CreateBuffer(fftDesc);
 }
 
 Generator::~Generator()
@@ -53,10 +34,8 @@ Generator::~Generator()
   renderDevice->DestroyTexture2D(displacementX);
   renderDevice->DestroyTexture2D(displacementZ);
   renderDevice->DestroyTexture2D(gaussianImage);
-  renderDevice->DestroyTexture2D(tempImage);
 
   renderDevice->DestroyBuffer(oceanUBO);
-  renderDevice->DestroyBuffer(fftUBO);
 
   renderDevice->DestroyComputePipeline(computePS);
 }
@@ -116,14 +95,11 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   // Ensure that none of our FFTs operate before we are ready
   renderDevice->ImageBarrier();
 
-  PerformFFT(heightMap);
-  PerformFFT(normalMapX);
-  PerformFFT(normalMapZ);
-  PerformFFT(displacementX);
-  PerformFFT(displacementZ);
-
-  // Wait until our FFTs are done before finalizing
-  renderDevice->ImageBarrier();
+  fftCalc->EncodeIFFT(heightMap);
+  fftCalc->EncodeIFFT(normalMapX);
+  fftCalc->EncodeIFFT(normalMapZ);
+  fftCalc->EncodeIFFT(displacementX);
+  fftCalc->EncodeIFFT(displacementZ);
 
   // Combine the normal maps after fft
   renderDevice->BindImage2D(normalMapX, 2);
@@ -145,7 +121,6 @@ void Generator::LoadShaders()
 
   Vision::ComputePipelineDesc desc;
   Vision::ShaderCompiler compiler;
-  compiler.CompileFile("resources/fft.compute", desc.ComputeKernels);
   compiler.CompileFile("resources/spectrum.compute", desc.ComputeKernels);
   computePS = renderDevice->CreateComputePipeline(desc);
 }
@@ -161,7 +136,6 @@ void Generator::CreateTextures()
     renderDevice->DestroyTexture2D(displacementX);
     renderDevice->DestroyTexture2D(displacementZ);
     renderDevice->DestroyTexture2D(gaussianImage);
-    renderDevice->DestroyTexture2D(tempImage);
     renderDevice->DestroyTexture2D(initialSpectrum);
   }
 
@@ -183,57 +157,14 @@ void Generator::CreateTextures()
   displacementX = renderDevice->CreateTexture2D(desc);
   displacementZ = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
-  tempImage = renderDevice->CreateTexture2D(desc);
   initialSpectrum = renderDevice->CreateTexture2D(desc);
 
   GenerateNoise();
 }
 
-void Generator::PerformFFT(Vision::ID srcImage)
-{
-  // Function to bind appropriate image
-  bool workImgAsInput = false;
-  auto bindImages = [&]()
-  {
-    if (!workImgAsInput)
-    {
-      renderDevice->BindImage2D(srcImage, 0, Vision::ImageAccess::ReadOnly);
-      renderDevice->BindImage2D(tempImage, 1, Vision::ImageAccess::WriteOnly);
-    }
-    else
-    {
-      renderDevice->BindImage2D(srcImage, 1, Vision::ImageAccess::WriteOnly);
-      renderDevice->BindImage2D(tempImage, 0, Vision::ImageAccess::ReadOnly);
-    }
-
-    workImgAsInput = !workImgAsInput;
-  };
-
-  // Swap low frequencies to edges
-  bindImages();
-  renderDevice->DispatchCompute(computePS, "fftShift", {textureSize, textureSize, 1});
-  renderDevice->ImageBarrier();
-
-  // Bit-reversal to prepare for Cooley-Tukey FFT
-  bindImages();
-  renderDevice->DispatchCompute(computePS, "imageReversal", {textureSize, textureSize, 1});
-  renderDevice->ImageBarrier();
-
-  // Perform all of our passes
-  int numPasses = glm::log2(textureSize) * 2;
-  for (int i = 0; i < numPasses; i++)
-  {
-    renderDevice->BindBuffer(fftUBO, 0, i * sizeof(FFTPass), sizeof(FFTPass));
-
-    bindImages();
-    renderDevice->DispatchCompute(computePS, "fft", {textureSize, 1, 1});
-    renderDevice->ImageBarrier();
-  }
-}
-
 void Generator::GenerateNoise()
 {
-  // Create data for our sgaussian image on CPU
+  // Create data for our gaussian image on CPU.
   std::vector<glm::vec4> randomValues(textureSize * textureSize, glm::vec4(0.0f));
   float scale = 1.0 / glm::sqrt(2.0);
   for (int i = 0; i < textureSize * textureSize; i++)

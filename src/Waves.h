@@ -2,6 +2,7 @@
 
 #include "core/App.h"
 
+#include "FFTCalculator.h"
 #include "Generator.h"
 #include "Renderer.h"
 
@@ -20,8 +21,10 @@ public:
   void DrawUI();
 
 private:
-  Generator *generator = nullptr;
-  WaveRenderer *waveRenderer = nullptr;
+  std::size_t textureResolution = 512;
+  FFTCalculator* fftCalculator = nullptr;
+  Generator* generator = nullptr;
+  WaveRenderer* waveRenderer = nullptr;
 
   Vision::ID renderPass = 0;
 

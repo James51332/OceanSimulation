@@ -13,7 +13,8 @@ namespace Waves
 
 WaveApp::WaveApp()
 {
-  generator = new Generator(renderDevice);
+  fftCalculator = new FFTCalculator(renderDevice, textureResolution);
+  generator = new Generator(renderDevice, fftCalculator);
   waveRenderer = new WaveRenderer(renderDevice, renderer, GetDisplayWidth(), GetDisplayHeight());
 
   // Create our RenderPass
@@ -29,6 +30,7 @@ WaveApp::~WaveApp()
 {
   renderDevice->DestroyRenderPass(renderPass);
 
+  delete fftCalculator;
   delete waveRenderer;
   delete generator;
 }
@@ -79,7 +81,7 @@ void WaveApp::DrawUI()
 
   if (ImGui::Begin("Ocean Settings"))
   {
-    Generator::OceanSettings &settings = generator->GetOceanSettings();
+    Generator::OceanSettings& settings = generator->GetOceanSettings();
     ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
     ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
     ImGui::DragFloat("Scale", &settings.scale, 0.0005f);
