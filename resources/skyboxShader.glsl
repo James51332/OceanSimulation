@@ -1,11 +1,11 @@
 #section type(vertex)
 #version 450 core
 
-layout (location = 0) in vec3 a_Pos;
+layout(location = 0) in vec3 a_Pos;
 
 out vec3 texCoord;
 
-layout (binding = 0) uniform pushConstants
+layout(binding = 0) uniform pushConstants
 {
   mat4 u_View;
   mat4 u_Projection;
@@ -18,7 +18,7 @@ layout (binding = 0) uniform pushConstants
 void main()
 {
   texCoord = a_Pos;
-  
+
   mat4 noTranslateView = mat4(mat3(u_View));
   vec4 pos = u_Projection * noTranslateView * vec4(a_Pos, 1.0);
   gl_Position = pos.xyww; // place the depth in normalized coords as far as possible.
@@ -31,7 +31,7 @@ in vec3 texCoord;
 
 out vec4 FragColor;
 
-layout (binding = 0) uniform samplerCube skybox;
+layout(binding = 0) uniform samplerCube skybox;
 
 void main()
 {

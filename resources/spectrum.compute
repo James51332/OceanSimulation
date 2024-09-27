@@ -5,29 +5,31 @@
 #define LOG_SIZE int(log2(SIZE))
 #define M_PI 3.141592653589793238462643383279502884197169399375105820974
 
-layout (rgba32f, binding = 0) uniform readonly image2D imgInput;
-layout (rgba32f, binding = 1) uniform writeonly image2D imgOutput;
+layout(rgba32f, binding = 0) uniform readonly image2D imgInput;
+layout(rgba32f, binding = 1) uniform writeonly image2D imgOutput;
 
-layout (std140, binding = 0) uniform spectrumSettings
+layout(std140, binding = 0) uniform spectrumSettings
 {
   float time;
   float planeSize;
   float gravity;
   float scale;
   vec2 windVelocity;
-  vec2 dummy;
+  float wavelengthMin;
+  float wavelengthMax;
+  bool boundWavelength;
+  vec3 dummy;
 };
 
 vec2 threadToWaveNumber(vec2 thread)
 {
-  vec2 frequency = thread - SIZE/2;
+  vec2 frequency = thread - SIZE / 2;
   return 2.0 * M_PI * frequency / planeSize;
 }
 
 vec2 complexMultiply(vec2 lhs, vec2 rhs)
 {
-  return vec2(lhs.x * rhs.x - lhs.y * rhs.y,
-              lhs.x * rhs.y + lhs.y * rhs.x);
+  return vec2(lhs.x * rhs.x - lhs.y * rhs.y, lhs.x * rhs.y + lhs.y * rhs.x);
 }
 
 #section type(compute) name(generateSpectrum)
@@ -41,20 +43,21 @@ float phillips(vec2 waveNumber, vec2 windVelocity, float gravity)
   float waveNumberLength2 = waveNumberLength * waveNumberLength;
   float waveNumberLength4 = waveNumberLength2 * waveNumberLength2;
   vec2 waveNumberDir = normalize(waveNumber);
-  
+
   float windSpeed = length(windVelocity);
   vec2 windDir = normalize(windVelocity);
-  
+
   float waveDotWind = dot(waveNumberDir, windDir);
   float waveDotWind2 = waveDotWind * waveDotWind;
-  
+
   float L = windSpeed * windSpeed / gravity;
   float L2 = L * L;
 
   float damping = 0.001;
-	float l2 = L2 * damping * damping;
-  
-  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2;// * exp(-waveNumberLength2 * l2);
+  float l2 = L2 * damping * damping;
+
+  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2 *
+         exp(-waveNumberLength2 * l2);
 }
 
 void main()
@@ -62,11 +65,15 @@ void main()
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
 
+  float wavelength = length(2 * M_PI / waveNumber);
+  float inRange = max(1.0 - float(boundWavelength),
+                      step(wavelengthMin, wavelength) * step(wavelength, wavelengthMax));
+
   // Fetch a random Gaussian value to model probability of wave existing
   vec2 currentValue = imageLoad(imgInput, ivec2(thread)).xy;
-  
+
   // Calculate and store the amplitude using the phillips spectrum
-  vec2 amp = scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  vec2 amp = inRange * scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
   imageStore(imgOutput, ivec2(thread), vec4(amp, 0.0, 1.0));
 }
 
@@ -81,7 +88,7 @@ void main()
 {
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
-  
+
   // This is the formula given in tessendorf's paper.
   //   h ̃0(k) exp {iω(k)t}
   // + h ̃∗0(−k)exp{−iω(k)t}
@@ -101,7 +108,7 @@ void main()
 
 #section type(compute) name(prepareNormalMap)
 
-layout (rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
+layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
 
 void main()
 {
@@ -119,7 +126,7 @@ void main()
 
 #section type(compute) name(combineNormalMap)
 
-layout (rgba32f, binding = 2) uniform image2D imgInOut;
+layout(rgba32f, binding = 2) uniform image2D imgInOut;
 
 void main()
 {
@@ -128,10 +135,10 @@ void main()
   // Get the gradient in each direction and construct binormal and tangent vectors
   float xDerivative = imageLoad(imgInOut, thread).x;
   vec3 binormal = vec3(1.0, xDerivative, 0.0);
-  
+
   float zDerivative = imageLoad(imgInput, thread).x;
   vec3 tangent = vec3(0.0, zDerivative, 1.0);
-  
+
   // Obtain normal vector orthogonal to both via cross product
   vec3 normal = normalize(cross(tangent, binormal));
   imageStore(imgInOut, thread, vec4(normal, 1.0));
@@ -139,7 +146,7 @@ void main()
 
 #section type(compute) name(prepareDisplacementMap)
 
-layout (rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
+layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
 
 void main()
 {
@@ -158,7 +165,7 @@ void main()
 
 #section type(compute) name(combineDisplacementMap)
 
-layout (rgba32f, binding = 2) uniform image2D imgInOut;
+layout(rgba32f, binding = 2) uniform image2D imgInOut;
 
 void main()
 {

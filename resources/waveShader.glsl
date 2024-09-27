@@ -14,10 +14,10 @@ layout(std140, binding = 0) uniform pushConstants
   float dummy;
 };
 
-layout(binding = 0) uniform sampler2D heightMap;
-layout(binding = 1) uniform sampler2D normalMap;
-layout(binding = 2) uniform sampler2D displacement;
-layout(binding = 3) uniform samplerCube skybox;
+layout(binding = 0) uniform sampler2D heightMap[3];
+layout(binding = 3) uniform sampler2D normalMap[3];
+layout(binding = 6) uniform sampler2D displacement[3];
+layout(binding = 9) uniform samplerCube skybox;
 
 out vec2 v_UV;
 out vec3 v_WorldPos;
@@ -50,8 +50,11 @@ void main()
   vec2 uv = pos.xz / textureSize; // Tile after 20m and center around origin
 
   // Now we can continue as before.
-  pos.xz += texture(displacement, uv).xz;
-  pos.y += texture(heightMap, uv).r;
+  for (int i = 0; i < 3; i++)
+  {
+    pos.xz += texture(displacement[i], uv).xz;
+    pos.y += texture(heightMap[i], uv).r;
+  }
   gl_Position = u_ViewProjection * vec4(pos, 1.0);
 
   v_UV = uv;
@@ -68,15 +71,20 @@ in vec3 v_CameraPos;
 
 out vec4 fragColor;
 
-layout(binding = 0) uniform sampler2D heightMap;
-layout(binding = 1) uniform sampler2D normalMap;
-layout(binding = 2) uniform sampler2D displacement;
-layout(binding = 3) uniform samplerCube skybox;
+layout(binding = 0) uniform sampler2D heightMap[3];
+layout(binding = 3) uniform sampler2D normalMap[3];
+layout(binding = 6) uniform sampler2D displacement[3];
+layout(binding = 9) uniform samplerCube skybox;
 
 void main()
 {
-  float height = texture(heightMap, v_UV).r;
-  vec3 normal = texture(normalMap, v_UV).rgb;
+  float height = 0.0;
+  vec3 normal = vec3(0.0);
+  for (int i = 0; i < 3; i++)
+  {
+    height += texture(heightMap[i], v_UV).r;
+    normal += texture(normalMap[i], v_UV).rgb;
+  }
 
   vec3 lightDir = normalize(vec3(5.0, -3.0, 2.0));
 

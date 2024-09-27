@@ -40,25 +40,6 @@ Generator::~Generator()
   renderDevice->DestroyComputePipeline(computePS);
 }
 
-// void Generator::GenerateSpectrum()
-// {
-//   renderDevice->BeginComputePass();
-
-//   // This is a test FFT using our multipass API
-//   renderDevice->SetBufferData(oceanUBO, &oceanSettings,
-//   sizeof(OceanSettings)); renderDevice->BindBuffer(oceanUBO);
-
-//   // prepare our spectrum
-//   renderDevice->BindImage2D(heightMap, 0);
-//   renderDevice->BindImage2D(gaussianImage, 1);
-//   renderDevice->DispatchCompute(computePS, "generateSpectrum", { textureSize,
-//   textureSize, 1 }); renderDevice->ImageBarrier();
-
-//   PerformFFT(heightMap);
-
-//   renderDevice->EndComputePass();
-// }
-
 void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
 {
   renderDevice->BeginComputePass();
@@ -69,7 +50,7 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   renderDevice->BindBuffer(oceanUBO);
 
   // Update the spectrum if needed
-  // if (updateSpectrum || userUpdatedSpectrum)
+  if (updateSpectrum || userUpdatedSpectrum)
   {
     updateSpectrum = false;
     GenerateSpectrum();

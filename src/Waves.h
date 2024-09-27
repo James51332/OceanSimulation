@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "core/App.h"
 
 #include "FFTCalculator.h"
@@ -22,18 +24,11 @@ public:
 
 private:
   std::size_t textureResolution = 512;
-  FFTCalculator* fftCalculator = nullptr;
-  Generator* generator = nullptr;
   WaveRenderer* waveRenderer = nullptr;
+  FFTCalculator* fftCalculator = nullptr;
+  std::vector<Generator*> generators;
 
   Vision::ID renderPass = 0;
-
-  float wavelength = 6.5f;
-  float amplitude = 0.10f;
-  float angularFrequency = 1.5f;
-  float freqDamp = 1.234f;
-  float lengthDamp = 0.85f;
-  float ampDamp = 0.75f;
 };
 
 } // namespace Waves

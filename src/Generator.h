@@ -25,7 +25,10 @@ public:
     float gravity = 9.8f;
     float scale = 0.01;
     glm::vec2 windVelocity = glm::vec2(3.0f, 5.0f);
-    glm::vec2 dummy;
+    float wavelengthMin = 0.0f;
+    float wavelengthMax = 0.0f;
+    bool boundWavelength = false;
+    glm::vec3 dummy;
   };
   OceanSettings& GetOceanSettings() { return oceanSettings; }
 
@@ -51,13 +54,15 @@ private:
 
   std::size_t textureSize;
   Vision::ID heightMap = 0;
+  Vision::ID slopeMap = 0;
+  Vision::ID displacementMap = 0;
+
   Vision::ID normalMapX = 0;
   Vision::ID normalMapZ = 0;
   Vision::ID displacementX = 0;
   Vision::ID displacementZ = 0;
   Vision::ID gaussianImage = 0;
   Vision::ID initialSpectrum = 0;
-  Vision::ID tempImage = 0;
 };
 
 } // namespace Waves

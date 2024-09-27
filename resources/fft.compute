@@ -1,7 +1,7 @@
 #section common
 #version 460 core
 
-layout (std140, binding = 0) uniform fftSettings
+layout(std140, binding = 0) uniform fftSettings
 {
   int passNum;
   bool vertical;
@@ -13,15 +13,15 @@ layout (std140, binding = 0) uniform fftSettings
 #define NUM_CACHES 2
 #define M_PI 3.141592653589793238
 
-layout (rgba32f, binding = 0) uniform readonly image2D inputImg;
-layout (rgba32f, binding = 1) uniform writeonly image2D outputImg;
+layout(rgba32f, binding = 0) uniform readonly image2D inputImg;
+layout(rgba32f, binding = 1) uniform writeonly image2D outputImg;
 
 #section type(compute) name(fftShift)
 
 void main()
 {
   ivec2 start = ivec2(gl_GlobalInvocationID.xy);
-  ivec2 end = (start + SIZE/2) % SIZE;
+  ivec2 end = (start + SIZE / 2) % SIZE;
 
   vec4 value = imageLoad(inputImg, start);
   imageStore(outputImg, end, value);
@@ -49,7 +49,7 @@ void main()
 
 #section type(compute) name(fft)
 
-layout (local_size_x = SIZE/2) in;
+layout(local_size_x = SIZE / 2) in;
 
 void main()
 {
@@ -80,9 +80,8 @@ void main()
   float twiddleAngle = 2.0 * M_PI * dftElement / fullSize; // making this positive causes iFFT
   vec2 twiddle = vec2(cos(twiddleAngle), sin(twiddleAngle));
 
-  odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y,
-             odd.x * twiddle.y + odd.y * twiddle.x);
-                
+  odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y, odd.x * twiddle.y + odd.y * twiddle.x);
+
   // store them back into our texture
   imageStore(outputImg, evenPos, vec4(even + odd, 0.0, 1.0));
   imageStore(outputImg, oddPos, vec4(even - odd, 0.0, 1.0));

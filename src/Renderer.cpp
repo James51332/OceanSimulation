@@ -8,10 +8,10 @@
 namespace Waves
 {
 
-WaveRenderer::WaveRenderer(Vision::RenderDevice *device, Vision::Renderer *render, float w, float h)
-    : renderDevice(device), renderer(render), width(w), height(h)
+WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* render, float w, float h)
+  : renderDevice(device), renderer(render), width(w), height(h)
 {
-  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 500.0f);
+  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
@@ -40,20 +40,37 @@ void WaveRenderer::UpdateCamera(float timestep)
   camera->Update(timestep);
 }
 
-void WaveRenderer::Render(ID heightMap, ID normalMap, ID displacementMap)
+void WaveRenderer::Render(std::vector<Generator*>& generators)
 {
+  // This method requires exactly three simulated oceans to work.
+  assert(generators.size() == 3);
+
   renderer->Begin(camera);
 
-  renderDevice->BindTexture2D(heightMap, 0);
-  renderDevice->BindTexture2D(normalMap, 1);
-  renderDevice->BindTexture2D(displacementMap, 2);
-  renderDevice->BindCubemap(skyboxTexture, 3);
+  // Let the GPU know how to access the proper textures
+  renderDevice->BindCubemap(skyboxTexture, 9);
 
+  for (int i = 0; i < generators.size(); i++)
+  {
+    renderDevice->BindTexture2D(generators[i]->GetHeightMap(), i);
+
+    // This is gonna cause us trouble because we cannot actually simply add normals. We must add
+    // slope vectors and then cross multiply to get our final normal. So we are gonna have to do
+    // some restructing to get this to work. Maybe it will save us some math though in the end.
+    renderDevice->BindTexture2D(generators[i]->GetNormalMap(), i + 3);
+
+    // Displacement is closely related to slope as well, so we can perhaps just send the slope
+    // texture to the renderer and calculate the displacement and normal in the vertex shader.
+    renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 6);
+  }
+
+  // Draw the ocean in wireframe mode if
   if (!Vision::Input::KeyDown(SDL_SCANCODE_T))
     renderer->DrawMesh(planeMesh, wavePS);
   else
     renderer->DrawMesh(planeMesh, transparentPS);
 
+  // Draw the skybox whereever the ocean hasn't written to the depthbuffer.
   renderDevice->BindCubemap(skyboxTexture);
   renderer->DrawMesh(cubeMesh, skyboxPS);
 

@@ -13,9 +13,12 @@ namespace Waves
 
 WaveApp::WaveApp()
 {
-  fftCalculator = new FFTCalculator(renderDevice, textureResolution);
-  generator = new Generator(renderDevice, fftCalculator);
   waveRenderer = new WaveRenderer(renderDevice, renderer, GetDisplayWidth(), GetDisplayHeight());
+  fftCalculator = new FFTCalculator(renderDevice, textureResolution);
+
+  // Create our three different tiles of ocean of varying sizes.
+  for (int i = 0; i < waveRenderer->GetNumRequiredGenerators(); i++)
+    generators.push_back(new Generator(renderDevice, fftCalculator));
 
   // Create our RenderPass
   Vision::RenderPassDesc rpDesc;
@@ -32,7 +35,8 @@ WaveApp::~WaveApp()
 
   delete fftCalculator;
   delete waveRenderer;
-  delete generator;
+  for (auto* generator : generators)
+    delete generator;
 }
 
 void WaveApp::OnUpdate(float timestep)
@@ -42,7 +46,8 @@ void WaveApp::OnUpdate(float timestep)
   // Press R to reload shaders
   if (Vision::Input::KeyPress(SDL_SCANCODE_R))
   {
-    generator->LoadShaders();
+    for (auto* generator : generators)
+      generator->LoadShaders();
     waveRenderer->LoadShaders();
   }
 
@@ -55,12 +60,12 @@ void WaveApp::OnUpdate(float timestep)
   renderDevice->BeginCommandBuffer();
 
   // First, we do the waves pass
-  generator->CalculateOcean(timestep);
+  for (auto* generator : generators)
+    generator->CalculateOcean(timestep, true);
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
-  waveRenderer->Render(generator->GetHeightMap(), generator->GetNormalMap(),
-                       generator->GetDisplacementMap());
+  waveRenderer->Render(generators);
   DrawUI();
   renderDevice->EndRenderPass();
 
@@ -74,14 +79,14 @@ void WaveApp::DrawUI()
   uiRenderer->Begin();
   if (ImGui::Begin("TextureViewer"))
   {
-    ImGui::Image((ImTextureID)generator->GetHeightMap(), {400.0f, 400.0f});
-    ImGui::Image((ImTextureID)generator->GetNormalMap(), {400.0f, 400.0f});
+    ImGui::Image((ImTextureID)generators[0]->GetHeightMap(), {400.0f, 400.0f});
+    ImGui::Image((ImTextureID)generators[0]->GetNormalMap(), {400.0f, 400.0f});
   }
   ImGui::End();
 
   if (ImGui::Begin("Ocean Settings"))
   {
-    Generator::OceanSettings& settings = generator->GetOceanSettings();
+    Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
     ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
     ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
     ImGui::DragFloat("Scale", &settings.scale, 0.0005f);

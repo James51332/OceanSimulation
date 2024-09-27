@@ -1,7 +1,11 @@
 #pragma once
 
+#include <vector>
+
 #include "renderer/RenderDevice.h"
 #include "renderer/Renderer.h"
+
+#include "Generator.h"
 
 namespace Waves
 {
@@ -11,12 +15,16 @@ class WaveRenderer
   using ID = Vision::ID;
 
 public:
-  WaveRenderer(Vision::RenderDevice *renderDevice, Vision::Renderer *renderer, float width,
+  WaveRenderer(Vision::RenderDevice* renderDevice, Vision::Renderer* renderer, float width,
                float height);
   ~WaveRenderer();
 
   void UpdateCamera(float timestep);
-  void Render(ID heightMap, ID normalMap, ID displacement);
+
+  // Requires that the generators is an array of three valid FFT oceans
+  void Render(std::vector<Generator*>& generators);
+  static std::size_t GetNumRequiredGenerators() { return 3; }
+
   void Resize(float width, float height);
 
   void LoadShaders();
@@ -28,14 +36,14 @@ private:
 
 private:
   // General Rendering Data
-  Vision::RenderDevice *renderDevice = nullptr;
-  Vision::Renderer *renderer = nullptr;
+  Vision::RenderDevice* renderDevice = nullptr;
+  Vision::Renderer* renderer = nullptr;
   float width = 0.0f, height = 0.0f;
-  Vision::PerspectiveCamera *camera = nullptr;
+  Vision::PerspectiveCamera* camera = nullptr;
 
   // Meshes
-  Vision::Mesh *planeMesh = nullptr; // surface of water
-  Vision::Mesh *cubeMesh = nullptr;  // skybox and light visualization
+  Vision::Mesh* planeMesh = nullptr; // surface of water
+  Vision::Mesh* cubeMesh = nullptr;  // skybox and light visualization
 
   // Textures
   ID skyboxTexture = 0;
