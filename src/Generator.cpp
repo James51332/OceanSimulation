@@ -29,11 +29,10 @@ Generator::Generator(Vision::RenderDevice* device, FFTCalculator* calc)
 Generator::~Generator()
 {
   renderDevice->DestroyTexture2D(heightMap);
-  renderDevice->DestroyTexture2D(normalMapX);
-  renderDevice->DestroyTexture2D(normalMapZ);
-  renderDevice->DestroyTexture2D(displacementX);
-  renderDevice->DestroyTexture2D(displacementZ);
+  renderDevice->DestroyTexture2D(slopeMap);
+  renderDevice->DestroyTexture2D(displacementMap);
   renderDevice->DestroyTexture2D(gaussianImage);
+  renderDevice->DestroyTexture2D(initialSpectrum);
 
   renderDevice->DestroyBuffer(oceanUBO);
 
@@ -63,34 +62,20 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
 
   // Prepare the normal map FFT
   renderDevice->BindImage2D(heightMap, 0);
-  renderDevice->BindImage2D(normalMapX, 1);
-  renderDevice->BindImage2D(normalMapZ, 2);
-  renderDevice->DispatchCompute(computePS, "prepareNormalMap", {textureSize, textureSize, 1});
+  renderDevice->BindImage2D(slopeMap, 1);
+  renderDevice->DispatchCompute(computePS, "prepareSlopeMap", {textureSize, textureSize, 1});
 
   // Prepare the displacement map FFT
-  renderDevice->BindImage2D(displacementX, 1);
-  renderDevice->BindImage2D(displacementZ, 2);
-  // renderDevice->BindImage2D(heightMap, 2); // still bound
+  renderDevice->BindImage2D(heightMap, 0);
+  renderDevice->BindImage2D(displacementMap, 1);
   renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", {textureSize, textureSize, 1});
 
   // Ensure that none of our FFTs operate before we are ready
   renderDevice->ImageBarrier();
 
   fftCalc->EncodeIFFT(heightMap);
-  fftCalc->EncodeIFFT(normalMapX);
-  fftCalc->EncodeIFFT(normalMapZ);
-  fftCalc->EncodeIFFT(displacementX);
-  fftCalc->EncodeIFFT(displacementZ);
-
-  // Combine the normal maps after fft
-  renderDevice->BindImage2D(normalMapX, 2);
-  renderDevice->BindImage2D(normalMapZ, 0);
-  renderDevice->DispatchCompute(computePS, "combineNormalMap", {textureSize, textureSize, 1});
-
-  // Also the displacement maps after fft
-  renderDevice->BindImage2D(displacementX, 2);
-  renderDevice->BindImage2D(displacementZ, 0);
-  renderDevice->DispatchCompute(computePS, "combineDisplacementMap", {textureSize, textureSize, 1});
+  fftCalc->EncodeIFFT(slopeMap);
+  fftCalc->EncodeIFFT(displacementMap);
 
   renderDevice->EndComputePass();
 }
@@ -112,10 +97,8 @@ void Generator::CreateTextures()
   if (heightMap)
   {
     renderDevice->DestroyTexture2D(heightMap);
-    renderDevice->DestroyTexture2D(normalMapX);
-    renderDevice->DestroyTexture2D(normalMapZ);
-    renderDevice->DestroyTexture2D(displacementX);
-    renderDevice->DestroyTexture2D(displacementZ);
+    renderDevice->DestroyTexture2D(slopeMap);
+    renderDevice->DestroyTexture2D(displacementMap);
     renderDevice->DestroyTexture2D(gaussianImage);
     renderDevice->DestroyTexture2D(initialSpectrum);
   }
@@ -133,10 +116,8 @@ void Generator::CreateTextures()
   desc.Data = nullptr;
 
   heightMap = renderDevice->CreateTexture2D(desc);
-  normalMapX = renderDevice->CreateTexture2D(desc);
-  normalMapZ = renderDevice->CreateTexture2D(desc);
-  displacementX = renderDevice->CreateTexture2D(desc);
-  displacementZ = renderDevice->CreateTexture2D(desc);
+  slopeMap = renderDevice->CreateTexture2D(desc);
+  displacementMap = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
   initialSpectrum = renderDevice->CreateTexture2D(desc);
 
@@ -147,14 +128,12 @@ void Generator::GenerateNoise()
 {
   // Create data for our gaussian image on CPU.
   std::vector<glm::vec4> randomValues(textureSize * textureSize, glm::vec4(0.0f));
+
+  // Our random pairs of values have std dev of 1 for mag by pythagorean thm.
   float scale = 1.0 / glm::sqrt(2.0);
   for (int i = 0; i < textureSize * textureSize; i++)
-  {
-    float x = glm::gaussRand(0.0, 1.0);
-    float y = glm::gaussRand(0.0, 1.0);
-    glm::vec4 amp = glm::vec4(x, y, 0.0f, 0.0f) * scale;
-    randomValues[i] = amp;
-  }
+    randomValues[i] = glm::gaussRand(glm::vec4(0.0f), glm::vec4(scale));
+
   renderDevice->SetTexture2DDataRaw(gaussianImage, randomValues.data());
 }
 

@@ -57,7 +57,7 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
     // This is gonna cause us trouble because we cannot actually simply add normals. We must add
     // slope vectors and then cross multiply to get our final normal. So we are gonna have to do
     // some restructing to get this to work. Maybe it will save us some math though in the end.
-    renderDevice->BindTexture2D(generators[i]->GetNormalMap(), i + 3);
+    renderDevice->BindTexture2D(generators[i]->GetSlopeMap(), i + 3);
 
     // Displacement is closely related to slope as well, so we can perhaps just send the slope
     // texture to the renderer and calculate the displacement and normal in the vertex shader.

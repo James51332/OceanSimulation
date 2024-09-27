@@ -72,17 +72,18 @@ void main()
   ivec2 evenPos = vertical ? ivec2(id.y, evenIndex) : ivec2(evenIndex, id.y);
   ivec2 oddPos = vertical ? ivec2(id.y, oddIndex) : ivec2(oddIndex, id.y);
 
-  // retrieve our values and twiddle the odd factor
-  vec2 even = imageLoad(inputImg, evenPos).xy;
-  vec2 odd = imageLoad(inputImg, oddPos).xy;
+  // we retrieve both values, because this algorithm is easily modified to be a dual FFT (xy, zw)
+  vec4 even = imageLoad(inputImg, evenPos);
+  vec4 odd = imageLoad(inputImg, oddPos);
 
   // compute the twiddle factor for combining two dfts
   float twiddleAngle = 2.0 * M_PI * dftElement / fullSize; // making this positive causes iFFT
   vec2 twiddle = vec2(cos(twiddleAngle), sin(twiddleAngle));
 
-  odd = vec2(odd.x * twiddle.x - odd.y * twiddle.y, odd.x * twiddle.y + odd.y * twiddle.x);
+  odd.xy = vec2(odd.x * twiddle.x - odd.y * twiddle.y, odd.x * twiddle.y + odd.y * twiddle.x);
+  odd.zw = vec2(odd.z * twiddle.x - odd.w * twiddle.y, odd.z * twiddle.y + odd.w * twiddle.x);
 
   // store them back into our texture
-  imageStore(outputImg, evenPos, vec4(even + odd, 0.0, 1.0));
-  imageStore(outputImg, oddPos, vec4(even - odd, 0.0, 1.0));
+  imageStore(outputImg, evenPos, even + odd);
+  imageStore(outputImg, oddPos, even - odd);
 }

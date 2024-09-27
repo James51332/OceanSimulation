@@ -15,8 +15,8 @@ layout(std140, binding = 0) uniform pushConstants
 };
 
 layout(binding = 0) uniform sampler2D heightMap[3];
-layout(binding = 3) uniform sampler2D normalMap[3];
-layout(binding = 6) uniform sampler2D displacement[3];
+layout(binding = 3) uniform sampler2D slopeMap[3];
+layout(binding = 6) uniform sampler2D displacementMap[3];
 layout(binding = 9) uniform samplerCube skybox;
 
 out vec2 v_UV;
@@ -52,7 +52,7 @@ void main()
   // Now we can continue as before.
   for (int i = 0; i < 3; i++)
   {
-    pos.xz += texture(displacement[i], uv).xz;
+    pos.xz += texture(displacementMap[i], uv).xz;
     pos.y += texture(heightMap[i], uv).r;
   }
   gl_Position = u_ViewProjection * vec4(pos, 1.0);
@@ -72,19 +72,25 @@ in vec3 v_CameraPos;
 out vec4 fragColor;
 
 layout(binding = 0) uniform sampler2D heightMap[3];
-layout(binding = 3) uniform sampler2D normalMap[3];
-layout(binding = 6) uniform sampler2D displacement[3];
+layout(binding = 3) uniform sampler2D slopeMap[3];
+layout(binding = 3) uniform sampler2D displacementMap[3];
 layout(binding = 9) uniform samplerCube skybox;
 
 void main()
 {
   float height = 0.0;
-  vec3 normal = vec3(0.0);
+  vec3 slope = vec3(0.0);
   for (int i = 0; i < 3; i++)
   {
     height += texture(heightMap[i], v_UV).r;
-    normal += texture(normalMap[i], v_UV).rgb;
+    slope += texture(slopeMap[i], v_UV).rgb;
   }
+
+  // Calculate our normal vector
+  // Get the gradient in each direction and construct binormal and tangent vectors
+  vec3 binormal = vec3(1.0, slope.x, 0.0);
+  vec3 tangent = vec3(0.0, slope.z, 1.0);
+  vec3 normal = normalize(cross(tangent, binormal));
 
   vec3 lightDir = normalize(vec3(5.0, -3.0, 2.0));
 

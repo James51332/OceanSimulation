@@ -36,8 +36,8 @@ public:
 
   void CreateTextures();
   Vision::ID GetHeightMap() const { return heightMap; }
-  Vision::ID GetNormalMap() const { return normalMapX; }
-  Vision::ID GetDisplacementMap() const { return displacementX; }
+  Vision::ID GetSlopeMap() const { return slopeMap; }
+  Vision::ID GetDisplacementMap() const { return displacementMap; }
 
 private:
   void GenerateNoise();
@@ -56,11 +56,6 @@ private:
   Vision::ID heightMap = 0;
   Vision::ID slopeMap = 0;
   Vision::ID displacementMap = 0;
-
-  Vision::ID normalMapX = 0;
-  Vision::ID normalMapZ = 0;
-  Vision::ID displacementX = 0;
-  Vision::ID displacementZ = 0;
   Vision::ID gaussianImage = 0;
   Vision::ID initialSpectrum = 0;
 };

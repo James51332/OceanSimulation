@@ -106,9 +106,7 @@ void main()
   imageStore(imgOutput, ivec2(thread), vec4(amplitude + oppAmplitude, 0.0, 1.0));
 }
 
-#section type(compute) name(prepareNormalMap)
-
-layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
+#section type(compute) name(prepareSlopeMap)
 
 void main()
 {
@@ -120,33 +118,10 @@ void main()
   vec2 xDerivative = waveNumber.x * vec2(-currentAmp.y, currentAmp.x);
   vec2 zDerivative = waveNumber.y * vec2(-currentAmp.y, currentAmp.x);
 
-  imageStore(imgOutput, ivec2(thread), vec4(xDerivative, 0.0, 1.0));
-  imageStore(imgOutput2, ivec2(thread), vec4(zDerivative, 0.0, 1.0));
-}
-
-#section type(compute) name(combineNormalMap)
-
-layout(rgba32f, binding = 2) uniform image2D imgInOut;
-
-void main()
-{
-  ivec2 thread = ivec2(gl_GlobalInvocationID.xy);
-
-  // Get the gradient in each direction and construct binormal and tangent vectors
-  float xDerivative = imageLoad(imgInOut, thread).x;
-  vec3 binormal = vec3(1.0, xDerivative, 0.0);
-
-  float zDerivative = imageLoad(imgInput, thread).x;
-  vec3 tangent = vec3(0.0, zDerivative, 1.0);
-
-  // Obtain normal vector orthogonal to both via cross product
-  vec3 normal = normalize(cross(tangent, binormal));
-  imageStore(imgInOut, thread, vec4(normal, 1.0));
+  imageStore(imgOutput, ivec2(thread), vec4(xDerivative, zDerivative));
 }
 
 #section type(compute) name(prepareDisplacementMap)
-
-layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput2;
 
 void main()
 {
@@ -159,18 +134,5 @@ void main()
   vec2 xDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
   vec2 zDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
 
-  imageStore(imgOutput, ivec2(thread), vec4(xDisplacementSignal, 0.0, 1.0));
-  imageStore(imgOutput2, ivec2(thread), vec4(zDisplacementSignal, 0.0, 1.0));
-}
-
-#section type(compute) name(combineDisplacementMap)
-
-layout(rgba32f, binding = 2) uniform image2D imgInOut;
-
-void main()
-{
-  vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 xDisplacement = imageLoad(imgInOut, ivec2(thread)).xy;
-  vec2 zDisplacement = imageLoad(imgInput, ivec2(thread)).xy;
-  imageStore(imgInOut, ivec2(thread), vec4(xDisplacement, zDisplacement));
+  imageStore(imgOutput, ivec2(thread), vec4(xDisplacementSignal, zDisplacementSignal));
 }

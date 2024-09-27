@@ -61,7 +61,7 @@ void WaveApp::OnUpdate(float timestep)
 
   // First, we do the waves pass
   for (auto* generator : generators)
-    generator->CalculateOcean(timestep, true);
+    generator->CalculateOcean(timestep);
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
@@ -80,7 +80,7 @@ void WaveApp::DrawUI()
   if (ImGui::Begin("TextureViewer"))
   {
     ImGui::Image((ImTextureID)generators[0]->GetHeightMap(), {400.0f, 400.0f});
-    ImGui::Image((ImTextureID)generators[0]->GetNormalMap(), {400.0f, 400.0f});
+    ImGui::Image((ImTextureID)generators[0]->GetSlopeMap(), {400.0f, 400.0f});
   }
   ImGui::End();
 
