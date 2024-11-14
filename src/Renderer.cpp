@@ -11,7 +11,9 @@ namespace Waves
 WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* render, float w, float h)
   : renderDevice(device), renderer(render), width(w), height(h)
 {
-  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
+  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 180.0f);
+  camera->SetPosition({0.0f, 2.0f, 5.0f});
+  camera->SetRotation({-20.0f, 0.0f, 0.0f});
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
@@ -62,7 +64,14 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
     // Displacement is closely related to slope as well, so we can perhaps just send the slope
     // texture to the renderer and calculate the displacement and normal in the vertex shader.
     renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 6);
+
+    // Update our ocean buffer data.
+    wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
   }
+
+  // Set and bind our UBO.
+  renderDevice->SetBufferData(wavesBuffer, &wavesBufferData, sizeof(WaveBuffer));
+  renderDevice->BindBuffer(wavesBuffer, 1);
 
   // Draw the ocean in wireframe mode if
   if (!Vision::Input::KeyDown(SDL_SCANCODE_T))
@@ -157,6 +166,19 @@ void WaveRenderer::GenerateTextures()
 
 void WaveRenderer::GenerateBuffers()
 {
+  wavesBufferData.planeSize[0] = 40.0f;
+  wavesBufferData.planeSize[1] = 200.0f;
+  wavesBufferData.planeSize[2] = 1000.0f;
+  wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
+  wavesBufferData.lightPos = glm::vec3(10000.0f, 1000.0f, 10000.0f);
+
+  Vision::BufferDesc bufferDesc;
+  bufferDesc.Type = Vision::BufferType::Uniform;
+  bufferDesc.Usage = Vision::BufferUsage::Dynamic;
+  bufferDesc.Size = sizeof(WaveRenderer::WaveBuffer);
+  bufferDesc.Data = &wavesBufferData;
+  bufferDesc.DebugName = "Wave Renderer Buffer";
+  wavesBuffer = renderDevice->CreateBuffer(bufferDesc);
 }
 
 } // namespace Waves

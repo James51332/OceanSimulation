@@ -18,7 +18,26 @@ WaveApp::WaveApp()
 
   // Create our three different tiles of ocean of varying sizes.
   for (int i = 0; i < waveRenderer->GetNumRequiredGenerators(); i++)
-    generators.push_back(new Generator(renderDevice, fftCalculator));
+  {
+    // Create our generator and configure
+    Generator* generator = new Generator(renderDevice, fftCalculator);
+    Generator::OceanSettings& settings = generator->GetOceanSettings();
+
+    // Set the size of the plane based on increasing prime sizes to prevent tiling.
+    static float scale = 10.0;
+    static float primeFactors[] = {3.0, 7.0, 19.0};
+    settings.planeSize = scale * primeFactors[i];
+
+    // Enable bound wavelength to prevent frequencies from adding themselves twice.
+    settings.boundWavelength = 1;
+
+    // Each wavelength should be on the smallest plane that it fits on for the most detail.
+    settings.wavelengthMax = settings.planeSize / 2.0;
+    settings.wavelengthMin = (i == 0) ? 0.0 : scale * primeFactors[i - 1] / 2.0;
+
+    // Add our generator to the array.
+    generators.push_back(generator);
+  }
 
   // Create our RenderPass
   Vision::RenderPassDesc rpDesc;
@@ -61,7 +80,10 @@ void WaveApp::OnUpdate(float timestep)
 
   // First, we do the waves pass
   for (auto* generator : generators)
-    generator->CalculateOcean(timestep);
+    generator->CalculateOcean(timestep, updateSpectrum);
+
+  // If we have updated our ocean spectrum, we don't need to again until it's changed.
+  updateSpectrum = false;
 
   // Then we do our the render pass
   renderDevice->BeginRenderPass(renderPass);
@@ -77,19 +99,22 @@ void WaveApp::OnUpdate(float timestep)
 void WaveApp::DrawUI()
 {
   uiRenderer->Begin();
-  if (ImGui::Begin("TextureViewer"))
-  {
-    ImGui::Image((ImTextureID)generators[0]->GetHeightMap(), {400.0f, 400.0f});
-    ImGui::Image((ImTextureID)generators[0]->GetSlopeMap(), {400.0f, 400.0f});
-  }
-  ImGui::End();
-
   if (ImGui::Begin("Ocean Settings"))
   {
     Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
-    ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
-    ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
-    ImGui::DragFloat("Scale", &settings.scale, 0.0005f);
+
+    updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
+    updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
+    updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f);
+
+    if (updateSpectrum)
+      for (auto& generator : generators)
+      {
+        Generator::OceanSettings& toChange = generator->GetOceanSettings();
+        toChange.windVelocity = settings.windVelocity;
+        toChange.gravity = settings.gravity;
+        toChange.scale = settings.scale;
+      }
   }
   ImGui::End();
 

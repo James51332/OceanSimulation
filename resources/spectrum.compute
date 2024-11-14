@@ -17,8 +17,8 @@ layout(std140, binding = 0) uniform spectrumSettings
   vec2 windVelocity;
   float wavelengthMin;
   float wavelengthMax;
-  bool boundWavelength;
-  vec3 dummy;
+  int boundWavelength; // 1 = use wavelength min and max, 0 = don't use wavelength man and min.
+  int dummy1, dummy2, dummy3;
 };
 
 vec2 threadToWaveNumber(vec2 thread)
@@ -73,7 +73,8 @@ void main()
   vec2 currentValue = imageLoad(imgInput, ivec2(thread)).xy;
 
   // Calculate and store the amplitude using the phillips spectrum
-  vec2 amp = inRange * scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  float globalScale = 0.005;
+  vec2 amp = inRange * globalScale * scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
   imageStore(imgOutput, ivec2(thread), vec4(amp, 0.0, 1.0));
 }
 

@@ -26,7 +26,9 @@ private:
   std::size_t textureResolution = 512;
   WaveRenderer* waveRenderer = nullptr;
   FFTCalculator* fftCalculator = nullptr;
+
   std::vector<Generator*> generators;
+  bool updateSpectrum = true;
 
   Vision::ID renderPass = 0;
 };

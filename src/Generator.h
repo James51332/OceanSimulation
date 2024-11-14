@@ -23,12 +23,12 @@ public:
     float time = 0.0f;
     float planeSize = 20.0f;
     float gravity = 9.8f;
-    float scale = 0.01;
+    float scale = 1.0;
     glm::vec2 windVelocity = glm::vec2(3.0f, 5.0f);
     float wavelengthMin = 0.0f;
     float wavelengthMax = 0.0f;
-    bool boundWavelength = false;
-    glm::vec3 dummy;
+    int boundWavelength = 0;
+    int dummy1, dummy2, dummy3;
   };
   OceanSettings& GetOceanSettings() { return oceanSettings; }
 
