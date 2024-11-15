@@ -76,7 +76,7 @@ layout(std140, binding = 1) uniform waveShaderConstants
 
   // The position of the light in the sky. We can make this very far away.
   vec3 lightPos;
-  float dummy2;
+  float lightDummy;
 
   // The size of the three planes that make up our water.
   vec4 planeSize;
@@ -89,7 +89,7 @@ out vec4 fragColor;
 
 layout(binding = 0) uniform sampler2D heightMap[3];
 layout(binding = 3) uniform sampler2D slopeMap[3];
-layout(binding = 3) uniform sampler2D displacementMap[3];
+layout(binding = 6) uniform sampler2D displacementMap[3];
 layout(binding = 9) uniform samplerCube skybox;
 
 void main()
