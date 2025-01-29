@@ -54,13 +54,21 @@ private:
   // Dynamic Data and Buffers
   struct WaveBuffer
   {
-    glm::vec4 waveColor; // The color of the wave.
-    glm::vec3 lightPos;  // The position of the light in the sky. We can make this very far away.
-    float lightPosDummy; // Dummy for the light position.
-    float planeSize[4];  // The size of the three planes that make up our water.
+    glm::vec4 waveColor;      // The color of the wave.
+    glm::vec3 lightDirection; // The direction towards the sun.
+    float lightDirDummy;      // Dummy for the light direction.
+    float planeSize[4];       // The size of the three planes that make up our water.
   };
   WaveBuffer wavesBufferData;
   ID wavesBuffer = 0;
+
+  struct SkyboxBuffer
+  {
+    glm::vec3 lightDirection;
+    float lightDirDummy;
+  };
+  SkyboxBuffer skyboxBufferData;
+  ID skyboxBuffer = 0;
 };
 
 } // namespace Waves

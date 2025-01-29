@@ -42,15 +42,15 @@ void main()
   // distances to transform our plane into a plane with a roughly constant eye-space density.
   vec3 pos = a_Pos;
 
-  // Use our adjusted formula (separates inside points from outside points)
-  float linearScalar = 0.1;
-  float growthFactor = 0.2;
-  vec2 powFactor = vec2(pow(1 + growthFactor, abs(pos.x)), pow(1 + growthFactor, abs(pos.z)));
-  pos.xz = pos.xz * powFactor * linearScalar;
-
   // Scale and shift based on the position of the camera.
+  vec3 cameraDir = normalize(-inverse(u_View)[2].xyz);
   vec3 cameraPos = inverse(u_View)[3].xyz;
-  pos.xz *= max(cameraPos.y, 0.5);
+
+  // We scale based on the depth to the camera, but we
+  float depth = abs(dot(cameraDir, vec3(pos.x, -cameraPos.y, pos.z)));
+  pos.xz *= depth;
+
+  // Center around the camera.
   pos.xz += cameraPos.xz;
 
   // Now we can continue as before.
