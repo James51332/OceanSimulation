@@ -132,8 +132,8 @@ void main()
 
   // Displacement vector = -i * k/|k| * exp(i * dot(k,x));
   vec2 currentAmp = imageLoad(imgInput, ivec2(thread)).xy;
-  vec2 xDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
-  vec2 zDisplacementSignal = waveDir.x * vec2(currentAmp.y, -currentAmp.x);
+  vec2 xDisplacementSignal = -waveDir.x * vec2(currentAmp.y, -currentAmp.x);
+  vec2 zDisplacementSignal = -waveDir.y * vec2(currentAmp.y, -currentAmp.x);
 
   imageStore(imgOutput, ivec2(thread), vec4(xDisplacementSignal, zDisplacementSignal));
 }

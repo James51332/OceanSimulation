@@ -10,6 +10,25 @@
 namespace Waves
 {
 
+// Wave Uniform Buffer Data Structure
+struct WaveRenderData
+{
+  // Wave Simulation Data
+  float planeSize[4];  // The size of the three planes that make up our water.
+  glm::vec4 waveColor; // The color of the wave.
+
+  // Skybox Data
+  glm::vec4 skyColor;
+  glm::vec4 sunColor;
+  glm::vec3 lightDirection;
+  float sunViewAngle;
+  float sunFalloffAngle;
+  float cameraFOV;
+
+  // Ensure that we are 16-byte aligned.
+  glm::vec2 dummy;
+};
+
 class WaveRenderer
 {
   using ID = Vision::ID;
@@ -29,9 +48,10 @@ public:
 
   void LoadShaders();
 
+  WaveRenderData& GetWaveRenderData() { return wavesBufferData; }
+
 private:
   void GeneratePipelines();
-  void GenerateTextures();
   void GenerateBuffers();
 
 private:
@@ -45,30 +65,12 @@ private:
   Vision::Mesh* planeMesh = nullptr; // surface of water
   Vision::Mesh* cubeMesh = nullptr;  // skybox and light visualization
 
-  // Textures
-  ID skyboxTexture = 0;
-
   // Pipelines and Shaders
   ID wavePS = 0, transparentPS = 0, skyboxPS = 0;
 
-  // Dynamic Data and Buffers
-  struct WaveBuffer
-  {
-    glm::vec4 waveColor;      // The color of the wave.
-    glm::vec3 lightDirection; // The direction towards the sun.
-    float lightDirDummy;      // Dummy for the light direction.
-    float planeSize[4];       // The size of the three planes that make up our water.
-  };
-  WaveBuffer wavesBufferData;
+  // Wave Uniform Buffer
+  WaveRenderData wavesBufferData;
   ID wavesBuffer = 0;
-
-  struct SkyboxBuffer
-  {
-    glm::vec3 lightDirection;
-    float lightDirDummy;
-  };
-  SkyboxBuffer skyboxBufferData;
-  ID skyboxBuffer = 0;
 };
 
 } // namespace Waves

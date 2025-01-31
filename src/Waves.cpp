@@ -99,22 +99,40 @@ void WaveApp::OnUpdate(float timestep)
 void WaveApp::DrawUI()
 {
   uiRenderer->Begin();
-  if (ImGui::Begin("Ocean Settings"))
+  if (ImGui::Begin("Settings"))
   {
-    Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
+    // Simulation Settings
+    if (ImGui::CollapsingHeader("Simulation"))
+    {
+      Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
 
-    updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
-    updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
-    updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f);
+      updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
+      updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
+      updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f);
 
-    if (updateSpectrum)
-      for (auto& generator : generators)
+      if (updateSpectrum)
       {
-        Generator::OceanSettings& toChange = generator->GetOceanSettings();
-        toChange.windVelocity = settings.windVelocity;
-        toChange.gravity = settings.gravity;
-        toChange.scale = settings.scale;
+        for (auto& generator : generators)
+        {
+          Generator::OceanSettings& toChange = generator->GetOceanSettings();
+          toChange.windVelocity = settings.windVelocity;
+          toChange.gravity = settings.gravity;
+          toChange.scale = settings.scale;
+        }
       }
+    }
+
+    // Rendering Settings
+    if (ImGui::CollapsingHeader("Rendering"))
+    {
+      WaveRenderData& data = waveRenderer->GetWaveRenderData();
+
+      ImGui::ColorEdit4("Wave Color", &data.waveColor[0]);
+      ImGui::ColorEdit4("Sky Color", &data.skyColor[0]);
+      ImGui::ColorEdit4("Sun Color", &data.sunColor[0]);
+      ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");
+      ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
+    }
   }
   ImGui::End();
 

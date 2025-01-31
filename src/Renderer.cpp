@@ -11,29 +11,24 @@ namespace Waves
 WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* render, float w, float h)
   : renderDevice(device), renderer(render), width(w), height(h)
 {
-  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 180.0f);
-  camera->SetPosition({0.0f, 2.0f, 5.0f});
-  camera->SetRotation({-20.0f, 0.0f, 0.0f});
+  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
+  camera->SetPosition({0.0f, 2.0f, 0.0f});
+  camera->SetRotation({0.0f, -135.0f, 0.0f});
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
 
   GeneratePipelines();
-  GenerateTextures();
   GenerateBuffers();
 }
 
 WaveRenderer::~WaveRenderer()
 {
   // Destroy all resources
-  renderDevice->DestroyCubemap(skyboxTexture);
-
   renderDevice->DestroyPipeline(wavePS);
   renderDevice->DestroyPipeline(transparentPS);
   renderDevice->DestroyPipeline(skyboxPS);
-
   renderDevice->DestroyBuffer(wavesBuffer);
-  renderDevice->DestroyBuffer(skyboxBuffer);
 
   delete planeMesh;
   delete cubeMesh;
@@ -53,8 +48,6 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   renderer->Begin(camera);
 
   // Let the GPU know how to access the proper textures
-  renderDevice->BindCubemap(skyboxTexture, 9);
-
   for (int i = 0; i < generators.size(); i++)
   {
     renderDevice->BindTexture2D(generators[i]->GetHeightMap(), i);
@@ -72,8 +65,8 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
     wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
   }
 
-  // Set and bind our UBO.
-  renderDevice->SetBufferData(wavesBuffer, &wavesBufferData, sizeof(WaveBuffer));
+  // Set and bind our UBOs.
+  renderDevice->SetBufferData(wavesBuffer, &wavesBufferData, sizeof(WaveRenderData));
   renderDevice->BindBuffer(wavesBuffer, 1);
 
   // Draw the ocean in wireframe mode if we press T.
@@ -83,8 +76,6 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
     renderer->DrawMesh(planeMesh, transparentPS);
 
   // Draw the skybox wherever the ocean hasn't written to the depthbuffer.
-  renderDevice->BindBuffer(skyboxBuffer);
-  renderDevice->BindCubemap(skyboxTexture);
   renderer->DrawMesh(cubeMesh, skyboxPS);
 
   renderer->End();
@@ -153,44 +144,33 @@ void WaveRenderer::GeneratePipelines()
     // previously rendered to will be written by the depth map, but we do in
     // fact want to discard the initial pixels with a depth of 1.
     psDesc.DepthFunc = Vision::DepthFunc::LessEqual;
-    // psDesc.DepthTest = true;
+    // TODO: psDesc.DepthTest = true;
 
     skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }
 }
 
-void WaveRenderer::GenerateTextures()
-{
-  Vision::CubemapDesc cubemapDesc;
-  cubemapDesc.Textures = {"resources/skybox/bluecloud_ft.jpg", "resources/skybox/bluecloud_bk.jpg",
-                          "resources/skybox/bluecloud_up.jpg", "resources/skybox/bluecloud_dn.jpg",
-                          "resources/skybox/bluecloud_rt.jpg", "resources/skybox/bluecloud_lf.jpg"};
-  skyboxTexture = renderDevice->CreateCubemap(cubemapDesc);
-}
-
 void WaveRenderer::GenerateBuffers()
 {
-  // First, we create our wave rendering buffer.
+  // Fill our wave buffer in with meaningful data.
   wavesBufferData.planeSize[0] = 40.0f;
   wavesBufferData.planeSize[1] = 200.0f;
   wavesBufferData.planeSize[2] = 1000.0f;
+  wavesBufferData.skyColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
-  wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.0f, 10.0f));
+  wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
+  wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
+  wavesBufferData.sunViewAngle = 2.0f;
+  wavesBufferData.sunFalloffAngle = 1.0f;
+  wavesBufferData.cameraFOV = camera->GetFOV();
 
   Vision::BufferDesc bufferDesc;
   bufferDesc.Type = Vision::BufferType::Uniform;
   bufferDesc.Usage = Vision::BufferUsage::Dynamic;
-  bufferDesc.Size = sizeof(WaveRenderer::WaveBuffer);
+  bufferDesc.Size = sizeof(WaveRenderData);
   bufferDesc.Data = &wavesBufferData;
   bufferDesc.DebugName = "Wave Renderer Buffer";
   wavesBuffer = renderDevice->CreateBuffer(bufferDesc);
-
-  // Next, we create our skybox rendering buffer (we can reuse the buffer desc).
-  skyboxBufferData.lightDirection = wavesBufferData.lightDirection;
-  bufferDesc.Size = sizeof(WaveRenderer::SkyboxBuffer);
-  bufferDesc.Data = &wavesBufferData;
-  bufferDesc.DebugName = "Skybox Renderer Buffer";
-  skyboxBuffer = renderDevice->CreateBuffer(bufferDesc);
 }
 
 } // namespace Waves
