@@ -104,15 +104,14 @@ void WaveRenderer::GeneratePipelines()
 {
   // Create the shaders by loading from disk and compiling
   Vision::ShaderCompiler compiler;
-  std::vector<Vision::ShaderSPIRV> waveShaders = compiler.CompileFile("resources/waveShader.glsl");
-  std::vector<Vision::ShaderSPIRV> skyboxShaders =
-      compiler.CompileFile("resources/skyboxShader.glsl");
+  std::unordered_map<std::string, Vision::ShaderSPIRV> waveShaders =
+      compiler.CompileFileToMap("resources/waveShader.glsl");
 
   // Create our wave pipeline state
   {
     Vision::RenderPipelineDesc psDesc;
-    psDesc.VertexShader = waveShaders[0];
-    psDesc.PixelShader = waveShaders[1];
+    psDesc.VertexShader = waveShaders["waveVertex"];
+    psDesc.PixelShader = waveShaders["waveFragment"];
     psDesc.Layouts = {
         Vision::BufferLayout({{Vision::ShaderDataType::Float3, "Position"},
                               {Vision::ShaderDataType::Float3, "Normal"},
@@ -130,8 +129,8 @@ void WaveRenderer::GeneratePipelines()
   // Create our skybox pipelines state
   {
     Vision::RenderPipelineDesc psDesc;
-    psDesc.VertexShader = skyboxShaders[0];
-    psDesc.PixelShader = skyboxShaders[1];
+    psDesc.VertexShader = waveShaders["skyVertex"];
+    psDesc.PixelShader = waveShaders["skyFragment"];
     psDesc.Layouts = {
         Vision::BufferLayout({{Vision::ShaderDataType::Float3, "Position"},
                               {Vision::ShaderDataType::Float3, "Normal"},
@@ -157,6 +156,7 @@ void WaveRenderer::GenerateBuffers()
   wavesBufferData.planeSize[1] = 200.0f;
   wavesBufferData.planeSize[2] = 1000.0f;
   wavesBufferData.skyColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
+  wavesBufferData.scatterColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
   wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));

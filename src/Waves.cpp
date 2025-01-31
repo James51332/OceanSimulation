@@ -128,6 +128,7 @@ void WaveApp::DrawUI()
       WaveRenderData& data = waveRenderer->GetWaveRenderData();
 
       ImGui::ColorEdit4("Wave Color", &data.waveColor[0]);
+      ImGui::ColorEdit4("Scatter Color", &data.scatterColor[0]);
       ImGui::ColorEdit4("Sky Color", &data.skyColor[0]);
       ImGui::ColorEdit4("Sun Color", &data.sunColor[0]);
       ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");

@@ -18,6 +18,7 @@ struct WaveRenderData
   glm::vec4 waveColor; // The color of the wave.
 
   // Skybox Data
+  glm::vec4 scatterColor;
   glm::vec4 skyColor;
   glm::vec4 sunColor;
   glm::vec3 lightDirection;

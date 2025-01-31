@@ -1,37 +1,64 @@
-#section type(vertex) name(waveVertex)
+#section common
 #version 450 core
 
-layout(location = 0) in vec3 a_Pos;
-layout(location = 3) in vec2 a_UV;
-
-layout(std140, binding = 0) uniform pushConstants
+layout(std140, binding = 0) uniform rendererData
 {
-  mat4 u_View;
-  mat4 u_Projection;
-  mat4 u_ViewProjection;
-  vec2 u_ViewportSize;
-  float u_Time;
-  float dummy;
+  mat4 view;                // The view matrix
+  mat4 projection;          // The projection matrix
+  mat4 viewProjection;      // The view projection matrix
+  vec2 viewportSize;        // The size of the viewport
+  float time;               // The time in seconds since the application opened
+  float pushConstantsDummy; // Ensure 16-byte alignment
 };
 
-layout(std140, binding = 1) uniform skyboxBuffer
+layout(std140, binding = 1) uniform wavesData
 {
-  vec4 planeSize; // The size of each simulation.
-  vec4 waveColor; // The color of the water.
-
-  vec4 skyColor;         // The color of the sky.
-  vec4 lightColor;       // The color of the sun.
-  vec3 lightDirection;   // The direction toward the sun.
-  float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky.
+  vec4 planeSize;        // The size of each simulation
+  vec4 waveColor;        // The color of the water
+  vec4 scatterColor;     // The scatter color of the water
+  vec4 skyColor;         // The color of the sky
+  vec4 lightColor;       // The color of the sun
+  vec3 lightDirection;   // The direction toward the sun
+  float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky
   float sunFalloffAngle; // The fading angle between the sun and the the sky
   float cameraFOV;       // The FOV of the camera
-
-  vec2 skyboxDummy; // Ensure we are 16-byte aligned.
+  vec2 skyboxDummy;      // Ensure we are 16-byte aligned
 };
 
 layout(binding = 0) uniform sampler2D heightMap[3];
 layout(binding = 3) uniform sampler2D slopeMap[3];
 layout(binding = 6) uniform sampler2D displacementMap[3];
+
+#define DEGREE_TO_RADIANS 0.0174533
+
+vec4 SampleSkybox(vec3 direction)
+{
+  // Normalize the direction so that it doesn't scale our dot products.
+  direction = normalize(direction);
+
+  // Calculate the sun by taking the dot product with the texCoord.
+  float sunSkyCosine = dot(normalize(lightDirection), direction);
+  float cosineThreshold = cos(sunViewAngle * DEGREE_TO_RADIANS);
+  float fadeThreshold = cos((sunViewAngle + max(sunFalloffAngle, 0.01)) * DEGREE_TO_RADIANS);
+
+  // We should claculate the sun's influence based on weather or not the dot product is above
+  // our threshold. Use a smoothstep here to blend between where the sun is and where it is not.
+  float sunInfluence = smoothstep(fadeThreshold, cosineThreshold, sunSkyCosine);
+
+  // Now square this value to create a more rapid falloff.
+  sunInfluence *= sunInfluence * sunInfluence;
+
+  // This is our true skybox color
+  vec4 skyboxColor = mix(skyColor, lightColor, pow(0.8 - direction.y / 0.8, 2));
+
+  // Blend the sun with the skybox color, burning the sun past max to max white
+  return (1.0 - sunInfluence) * skyboxColor + (2.0 * sunInfluence) * lightColor;
+}
+
+#section type(vertex) name(waveVertex)
+
+layout(location = 0) in vec3 a_Pos;
+layout(location = 3) in vec2 a_UV;
 
 out vec3 v_WorldPos;
 out vec3 v_CameraPos;
@@ -44,10 +71,10 @@ void main()
   vec3 pos = a_Pos;
 
   // Scale and shift based on the position of the camera.
-  vec3 cameraDir = normalize(-inverse(u_View)[2].xyz);
-  vec3 cameraPos = inverse(u_View)[3].xyz;
+  vec3 cameraDir = normalize(-inverse(view)[2].xyz);
+  vec3 cameraPos = inverse(view)[3].xyz;
 
-  // We scale based on the depth to the camera, but we
+  // We scale based on the depth to the camera.
   float depth = abs(dot(cameraDir, vec3(pos.x, -cameraPos.y, pos.z)));
   pos.xz *= depth;
 
@@ -61,61 +88,18 @@ void main()
     pos.xz += 1.0 * texture(displacementMap[i], uv).xz;
     pos.y += texture(heightMap[i], uv).r;
   }
-  gl_Position = u_ViewProjection * vec4(pos, 1.0);
+  gl_Position = viewProjection * vec4(pos, 1.0);
 
   v_WorldPos = pos.xyz;
-  v_CameraPos = inverse(u_View)[3].xyz;
+  v_CameraPos = inverse(view)[3].xyz;
 }
 
 #section type(fragment) name(waveFragment)
-#version 450 core
-
-layout(std140, binding = 1) uniform skyboxBuffer
-{
-  vec4 planeSize; // The size of each simulation.
-  vec4 waveColor; // The color of the water.
-
-  vec4 skyColor;         // The color of the sky.
-  vec4 lightColor;       // The color of the sun.
-  vec3 lightDirection;   // The direction toward the sun.
-  float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky.
-  float sunFalloffAngle; // The fading angle between the sun and the the sky
-  float cameraFOV;       // The FOV of the camera
-
-  vec2 skyboxDummy; // Ensure we are 16-byte aligned.
-};
 
 in vec3 v_WorldPos;
 in vec3 v_CameraPos;
 
-out vec4 fragColor;
-
-layout(binding = 0) uniform sampler2D heightMap[3];
-layout(binding = 3) uniform sampler2D slopeMap[3];
-layout(binding = 6) uniform sampler2D displacementMap[3];
-
-vec4 SampleSkybox(vec3 direction)
-{
-  // Calculate the sun by taking the dot product with the texCoord.
-  float sunSkyCosine = dot(normalize(lightDirection), normalize(direction));
-  float cosineThreshold = cos(sunViewAngle * 3.1415 / 180.0);
-  float fadeThreshold = cos((sunViewAngle + sunFalloffAngle) * 3.1415 / 180.0);
-
-  // We should claculate the sun's influence based on weather or not the dot product is above
-  // our threshold. Use a smoothstep here to blend between where the sun is and where it is not.
-  float sunInfluence = smoothstep(fadeThreshold, cosineThreshold, sunSkyCosine);
-
-  // Now square this value to create a more rapid falloff.
-  sunInfluence *= sunInfluence * sunInfluence;
-
-  // This is our true skybox color
-  vec4 skyboxColor = mix(skyColor, lightColor, pow(0.8 - normalize(direction).y / 0.8, 2));
-
-  // Blend the sun with the skybox color.
-  // We could just interpolate, but this looks bad. Instead, we can portray the atmosphere as
-  // slightly in front of the son using a blend mode.
-  return (1 - sunInfluence) * skyboxColor + 1.6 * sunInfluence * lightColor;
-}
+out vec4 FragColor;
 
 void main()
 {
@@ -142,11 +126,40 @@ void main()
   float ambient = 0.4;
   float diffuse = max(dot(normal, -lightDir), 0) * 0.6;
   float specular = pow(max(dot(reflectionDir, -lightDir), 0), 64) * 0.6;
-  float scatter = max(v_WorldPos.y * 0.4, 0.0);
+  float scatter = max(v_WorldPos.y * 0.15, 0.0);
   float light = diffuse + ambient + specular;
 
   // The color is the product of the light intensity, color at the surface, reflection color.
-  vec3 color =
-      light * (waveColor.rgb + scatter * vec3(0.2, 0.6, 0.9)) * SampleSkybox(reflectionDir).rgb;
-  fragColor = vec4(color, 1.0);
+  vec3 color = light * waveColor.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
+  FragColor = vec4(color, 1.0);
+}
+
+#section type(vertex) name(skyVertex)
+
+layout(location = 0) in vec3 a_Pos;
+
+out vec3 texCoord;
+
+void main()
+{
+  // Send the texture coordinate to the fragment shader to sample skybox.
+  texCoord = a_Pos;
+
+  // Remove the translation component from the view matrix
+  mat4 noTranslateView = mat4(mat3(view));
+
+  // Project and place the depth in normalized coords as far as possible.
+  vec4 pos = projection * noTranslateView * vec4(a_Pos, 1.0);
+  gl_Position = pos.xyww;
+}
+
+#section type(fragment) name(skyFragment)
+
+in vec3 texCoord;
+
+out vec4 FragColor;
+
+void main()
+{
+  FragColor = SampleSkybox(texCoord);
 }
