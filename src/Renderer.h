@@ -13,11 +13,13 @@ namespace Waves
 // Wave Uniform Buffer Data Structure
 struct WaveRenderData
 {
-  // Wave Simulation Data
-  float planeSize[4];  // The size of the three planes that make up our water.
-  glm::vec4 waveColor; // The color of the wave.
+  // Simulation Data
+  float planeSize[4];              // The size of the three planes that make up our water.
+  float displacementScale;         // The scale of the displacment of the water
+  float dDummy1, dDummy2, dDummy3; // Align to 16 byte data before switching data types.
 
-  // Skybox Data
+  // Rendering Data
+  glm::vec4 waveColor; // The color of the wave.
   glm::vec4 scatterColor;
   glm::vec4 skyColor;
   glm::vec4 sunColor;

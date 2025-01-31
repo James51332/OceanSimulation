@@ -143,7 +143,6 @@ void WaveRenderer::GeneratePipelines()
     // previously rendered to will be written by the depth map, but we do in
     // fact want to discard the initial pixels with a depth of 1.
     psDesc.DepthFunc = Vision::DepthFunc::LessEqual;
-    // TODO: psDesc.DepthTest = true;
 
     skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }
@@ -152,16 +151,13 @@ void WaveRenderer::GeneratePipelines()
 void WaveRenderer::GenerateBuffers()
 {
   // Fill our wave buffer in with meaningful data.
-  wavesBufferData.planeSize[0] = 40.0f;
-  wavesBufferData.planeSize[1] = 200.0f;
-  wavesBufferData.planeSize[2] = 1000.0f;
   wavesBufferData.skyColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
   wavesBufferData.scatterColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
   wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
   wavesBufferData.sunViewAngle = 2.0f;
-  wavesBufferData.sunFalloffAngle = 1.0f;
+  wavesBufferData.sunFalloffAngle = 2.0f;
   wavesBufferData.cameraFOV = camera->GetFOV();
 
   Vision::BufferDesc bufferDesc;

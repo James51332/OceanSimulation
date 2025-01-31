@@ -13,7 +13,12 @@ layout(std140, binding = 0) uniform rendererData
 
 layout(std140, binding = 1) uniform wavesData
 {
-  vec4 planeSize;        // The size of each simulation
+  // Simulation Data
+  vec4 planeSize;                       // The size of each simulation
+  float displacementScale;              // The scale of the displacment of the water
+  float disDummy1, diDummy2, disDummy3; // Align to 16 byte data before switching data types.
+
+  // Rendering Data
   vec4 waveColor;        // The color of the water
   vec4 scatterColor;     // The scatter color of the water
   vec4 skyColor;         // The color of the sky
@@ -85,7 +90,7 @@ void main()
   for (int i = 0; i < 3; i++)
   {
     vec2 uv = pos.xz / planeSize[i];
-    pos.xz += 1.0 * texture(displacementMap[i], uv).xz;
+    pos.xz += displacementScale * texture(displacementMap[i], uv).xz;
     pos.y += texture(heightMap[i], uv).r;
   }
   gl_Position = viewProjection * vec4(pos, 1.0);

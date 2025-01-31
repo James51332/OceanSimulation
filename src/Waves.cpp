@@ -24,16 +24,15 @@ WaveApp::WaveApp()
     Generator::OceanSettings& settings = generator->GetOceanSettings();
 
     // Set the size of the plane based on increasing prime sizes to prevent tiling.
-    static float scale = 10.0;
-    static float primeFactors[] = {3.0, 7.0, 19.0};
-    settings.planeSize = scale * primeFactors[i];
+    static float primeFactors[] = {13.0, 71.0, 131.0};
+    settings.planeSize = primeFactors[i];
 
     // Enable bound wavelength to prevent frequencies from adding themselves twice.
-    settings.boundWavelength = 1;
+    settings.boundWavelength = 0;
 
     // Each wavelength should be on the smallest plane that it fits on for the most detail.
     settings.wavelengthMax = settings.planeSize / 2.0;
-    settings.wavelengthMin = (i == 0) ? 0.0 : scale * primeFactors[i - 1] / 2.0;
+    settings.wavelengthMin = (i == 0) ? 0.0 : primeFactors[i - 1] / 2.0;
 
     // Add our generator to the array.
     generators.push_back(generator);
@@ -105,10 +104,19 @@ void WaveApp::DrawUI()
     if (ImGui::CollapsingHeader("Simulation"))
     {
       Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
+      Generator::OceanSettings& settings1 = generators[1]->GetOceanSettings();
+      Generator::OceanSettings& settings2 = generators[2]->GetOceanSettings();
 
       updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
       updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
       updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f);
+
+      // clang-format off
+      static const char* text[] = {"Generator #1 Size", "Generator #2 Size", "Generator #3 Size"};
+      updateSpectrum |= ImGui::DragFloat(text[0], &settings.planeSize, 0.1f, 1.0f, settings1.planeSize);
+      updateSpectrum |= ImGui::DragFloat(text[1], &settings1.planeSize, 1.f, settings.planeSize, settings2.planeSize);
+      updateSpectrum |= ImGui::DragFloat(text[2], &settings2.planeSize, 5.0f, settings1.planeSize, 500.0f);
+      // clang-format on
 
       if (updateSpectrum)
       {
@@ -133,7 +141,26 @@ void WaveApp::DrawUI()
       ImGui::ColorEdit4("Sun Color", &data.sunColor[0]);
       ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
+      ImGui::DragFloat("Displacement Scalar", &data.displacementScale, 0.1f, 0.0f, 1.0f, "%.1f");
     }
+  }
+  ImGui::End();
+
+  if (ImGui::Begin("Performance"))
+  {
+    static double lastTicks = SDL_GetTicks();
+    double curTicks = SDL_GetTicks();
+    double frameTime = curTicks - lastTicks;
+
+    // Accumulate the frame time using exponential decay
+    static double weightedFrameTime = 1.0f / 60.0f;
+    weightedFrameTime = frameTime * 0.1f + weightedFrameTime * 0.9f;
+
+    // Update the last frame time
+    lastTicks = curTicks;
+
+    ImGui::Text("FPS: %.1f", (1000.0f / weightedFrameTime));
+    ImGui::Text("Frame Time: %.1fms", weightedFrameTime);
   }
   ImGui::End();
 
