@@ -26,8 +26,7 @@ layout(std140, binding = 1) uniform wavesData
   vec3 lightDirection;   // The direction toward the sun
   float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky
   float sunFalloffAngle; // The fading angle between the sun and the the sky
-  float cameraFOV;       // The FOV of the camera
-  vec2 skyboxDummy;      // Ensure we are 16-byte aligned
+  vec3 skyboxDummy;      // Ensure we are 16-byte aligned
 };
 
 layout(binding = 0) uniform sampler2D heightMap[3];
@@ -81,7 +80,7 @@ void main()
 
   // We scale based on the depth to the camera.
   float depth = abs(dot(cameraDir, vec3(pos.x, -cameraPos.y, pos.z)));
-  pos.xz *= depth;
+  pos.xz *= depth * 0.6;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
@@ -123,7 +122,7 @@ void main()
 
   // Calculate the lighting information. This depends on the direction of the light (diffuse), the
   // direction of the camera (specular), and an ambient constant.
-  vec3 lightDir = -lightDirection;
+  vec3 lightDir = -normalize(lightDirection);
   vec3 camDir = normalize(v_CameraPos - v_WorldPos);
   vec3 reflectionDir = reflect(-camDir, normal);
 
@@ -150,7 +149,7 @@ void main()
   // Send the texture coordinate to the fragment shader to sample skybox.
   texCoord = a_Pos;
 
-  // Remove the translation component from the view matrix
+  // Remove the translation component from the view matrix.
   mat4 noTranslateView = mat4(mat3(view));
 
   // Project and place the depth in normalized coords as far as possible.

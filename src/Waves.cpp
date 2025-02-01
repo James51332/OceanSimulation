@@ -98,8 +98,27 @@ void WaveApp::OnUpdate(float timestep)
 void WaveApp::DrawUI()
 {
   uiRenderer->Begin();
-  if (ImGui::Begin("Settings"))
+  if (ImGui::Begin("Control Panel"))
   {
+    // Performance Metrics
+    if (ImGui::CollapsingHeader("Performance"))
+    {
+      static double lastTicks = SDL_GetTicks();
+      double curTicks = SDL_GetTicks();
+      double frameTime = curTicks - lastTicks;
+
+      // Accumulate the frame time using exponential decay
+      static double weightedFrameTime = 1.0f / 60.0f;
+      weightedFrameTime = frameTime * 0.1f + weightedFrameTime * 0.9f;
+
+      // Update the last frame time
+      lastTicks = curTicks;
+
+      // Print the FPS and frame time
+      ImGui::Text("FPS: %.1f", (1000.0f / weightedFrameTime));
+      ImGui::Text("Frame Time: %.1fms", weightedFrameTime);
+    }
+
     // Simulation Settings
     if (ImGui::CollapsingHeader("Simulation"))
     {
@@ -107,15 +126,15 @@ void WaveApp::DrawUI()
       Generator::OceanSettings& settings1 = generators[1]->GetOceanSettings();
       Generator::OceanSettings& settings2 = generators[2]->GetOceanSettings();
 
-      updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f);
-      updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f);
-      updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f);
-
       // clang-format off
-      static const char* text[] = {"Generator #1 Size", "Generator #2 Size", "Generator #3 Size"};
-      updateSpectrum |= ImGui::DragFloat(text[0], &settings.planeSize, 0.1f, 1.0f, settings1.planeSize);
-      updateSpectrum |= ImGui::DragFloat(text[1], &settings1.planeSize, 1.f, settings.planeSize, settings2.planeSize);
-      updateSpectrum |= ImGui::DragFloat(text[2], &settings2.planeSize, 5.0f, settings1.planeSize, 500.0f);
+      updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f, 0.0f, 20.0f, "%.2f");
+      updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f, 1.0f, 20.0f, "%.2f");
+      updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f, 0.05f, 5.0f, "%.2f");
+
+      static const char* text[] = {"Plane 1", "Plane 2", "Plane 3"};
+      updateSpectrum |= ImGui::DragFloat(text[0], &settings.planeSize, 0.1f, 1.0f, settings1.planeSize, "%.1f");
+      updateSpectrum |= ImGui::DragFloat(text[1], &settings1.planeSize, 1.f, settings.planeSize, settings2.planeSize, "%.0f");
+      updateSpectrum |= ImGui::DragFloat(text[2], &settings2.planeSize, 5.0f, settings1.planeSize, 500.0f, "%.0f");
       // clang-format on
 
       if (updateSpectrum)
@@ -139,31 +158,22 @@ void WaveApp::DrawUI()
       ImGui::ColorEdit4("Scatter Color", &data.scatterColor[0]);
       ImGui::ColorEdit4("Sky Color", &data.skyColor[0]);
       ImGui::ColorEdit4("Sun Color", &data.sunColor[0]);
+      ImGui::DragFloat3("Sun Direction", &data.lightDirection[0], 0.01f, -1.0f, 1.0f, "%.2f");
       ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
-      ImGui::DragFloat("Displacement Scalar", &data.displacementScale, 0.1f, 0.0f, 1.0f, "%.1f");
+      ImGui::DragFloat("Displacement", &data.displacementScale, 0.01f, 0.0f, 2.0f, "%.2f");
+
+      static bool wireframe = false;
+      if (ImGui::Checkbox("Render Wireframe (T)", &wireframe))
+        waveRenderer->UseWireframe(wireframe);
+      else if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+      {
+        wireframe = !wireframe;
+        waveRenderer->UseWireframe(wireframe);
+      }
     }
   }
   ImGui::End();
-
-  if (ImGui::Begin("Performance"))
-  {
-    static double lastTicks = SDL_GetTicks();
-    double curTicks = SDL_GetTicks();
-    double frameTime = curTicks - lastTicks;
-
-    // Accumulate the frame time using exponential decay
-    static double weightedFrameTime = 1.0f / 60.0f;
-    weightedFrameTime = frameTime * 0.1f + weightedFrameTime * 0.9f;
-
-    // Update the last frame time
-    lastTicks = curTicks;
-
-    ImGui::Text("FPS: %.1f", (1000.0f / weightedFrameTime));
-    ImGui::Text("Frame Time: %.1fms", weightedFrameTime);
-  }
-  ImGui::End();
-
   uiRenderer->End();
 }
 

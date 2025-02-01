@@ -26,7 +26,7 @@ WaveRenderer::~WaveRenderer()
 {
   // Destroy all resources
   renderDevice->DestroyPipeline(wavePS);
-  renderDevice->DestroyPipeline(transparentPS);
+  renderDevice->DestroyPipeline(wireframePS);
   renderDevice->DestroyPipeline(skyboxPS);
   renderDevice->DestroyBuffer(wavesBuffer);
 
@@ -69,11 +69,11 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   renderDevice->SetBufferData(wavesBuffer, &wavesBufferData, sizeof(WaveRenderData));
   renderDevice->BindBuffer(wavesBuffer, 1);
 
-  // Draw the ocean in wireframe mode if we press T.
-  if (!Vision::Input::KeyDown(SDL_SCANCODE_T))
-    renderer->DrawMesh(planeMesh, wavePS);
+  // Choose the correct pipeline based on whether or not we want to use wireframe mode.
+  if (useWireframe)
+    renderer->DrawMesh(planeMesh, wireframePS);
   else
-    renderer->DrawMesh(planeMesh, transparentPS);
+    renderer->DrawMesh(planeMesh, wavePS);
 
   // Draw the skybox wherever the ocean hasn't written to the depthbuffer.
   renderer->DrawMesh(cubeMesh, skyboxPS);
@@ -93,7 +93,7 @@ void WaveRenderer::LoadShaders()
   if (wavePS)
   {
     renderDevice->DestroyPipeline(wavePS);
-    renderDevice->DestroyPipeline(transparentPS);
+    renderDevice->DestroyPipeline(wireframePS);
     renderDevice->DestroyPipeline(skyboxPS);
   }
 
@@ -123,7 +123,7 @@ void WaveRenderer::GeneratePipelines()
 
     // Create a second pipeline state for rendering the mesh of our water.
     psDesc.FillMode = Vision::GeometryFillMode::Line;
-    transparentPS = renderDevice->CreateRenderPipeline(psDesc);
+    wireframePS = renderDevice->CreateRenderPipeline(psDesc);
   }
 
   // Create our skybox pipelines state
@@ -158,7 +158,6 @@ void WaveRenderer::GenerateBuffers()
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
   wavesBufferData.sunViewAngle = 2.0f;
   wavesBufferData.sunFalloffAngle = 2.0f;
-  wavesBufferData.cameraFOV = camera->GetFOV();
 
   Vision::BufferDesc bufferDesc;
   bufferDesc.Type = Vision::BufferType::Uniform;

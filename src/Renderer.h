@@ -14,22 +14,21 @@ namespace Waves
 struct WaveRenderData
 {
   // Simulation Data
-  float planeSize[4];              // The size of the three planes that make up our water.
-  float displacementScale;         // The scale of the displacment of the water
-  float dDummy1, dDummy2, dDummy3; // Align to 16 byte data before switching data types.
+  glm::vec4 planeSize = glm::vec4(0.0f); // The size of the three planes that make up our water
+  float displacementScale = 0.1f;        // The scale of the displacment of the water
+  float dDummy1, dDummy2, dDummy3;       // Align to 16 byte data before switching data types
 
   // Rendering Data
-  glm::vec4 waveColor; // The color of the wave.
-  glm::vec4 scatterColor;
-  glm::vec4 skyColor;
-  glm::vec4 sunColor;
-  glm::vec3 lightDirection;
-  float sunViewAngle;
-  float sunFalloffAngle;
-  float cameraFOV;
+  glm::vec4 waveColor = glm::vec4(1.0f);                  // The color of the wave
+  glm::vec4 scatterColor = glm::vec4(1.0f);               // Scatter color of the water
+  glm::vec4 skyColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f); // Color of the sky
+  glm::vec4 sunColor = glm::vec4(1.0f);                   // Color of sun and horizon
+  glm::vec3 lightDirection = glm::vec3(0.0f, 1.0f, 0.0f); // Direction towards the sun
+  float sunViewAngle = 2.0f;                              // The angle of the sun in the sky
+  float sunFalloffAngle = 0.0f;                           // The angle between hard edge and sky
 
   // Ensure that we are 16-byte aligned.
-  glm::vec2 dummy;
+  glm::vec3 dummy;
 };
 
 class WaveRenderer
@@ -48,6 +47,7 @@ public:
   static std::size_t GetNumRequiredGenerators() { return 3; }
 
   void Resize(float width, float height);
+  void UseWireframe(bool wireframe = true) { useWireframe = wireframe; }
 
   void LoadShaders();
 
@@ -69,7 +69,8 @@ private:
   Vision::Mesh* cubeMesh = nullptr;  // skybox and light visualization
 
   // Pipelines and Shaders
-  ID wavePS = 0, transparentPS = 0, skyboxPS = 0;
+  bool useWireframe = false;
+  ID wavePS = 0, wireframePS = 0, skyboxPS = 0;
 
   // Wave Uniform Buffer
   WaveRenderData wavesBufferData;
