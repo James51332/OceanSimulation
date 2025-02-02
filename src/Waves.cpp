@@ -97,22 +97,24 @@ void WaveApp::OnUpdate(float timestep)
 
 void WaveApp::DrawUI()
 {
+  // Calculate the frame time even when the window isn't open.
+  static double lastTicks = SDL_GetTicks();
+  double curTicks = SDL_GetTicks();
+  double frameTime = curTicks - lastTicks;
+
+  // Accumulate the frame time using exponential decay
+  static double weightedFrameTime = 1.0f / 60.0f;
+  weightedFrameTime = frameTime * 0.1f + weightedFrameTime * 0.9f;
+
+  // Update the last frame time
+  lastTicks = curTicks;
+
   uiRenderer->Begin();
   if (ImGui::Begin("Control Panel"))
   {
     // Performance Metrics
-    if (ImGui::CollapsingHeader("Performance"))
+    if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen))
     {
-      static double lastTicks = SDL_GetTicks();
-      double curTicks = SDL_GetTicks();
-      double frameTime = curTicks - lastTicks;
-
-      // Accumulate the frame time using exponential decay
-      static double weightedFrameTime = 1.0f / 60.0f;
-      weightedFrameTime = frameTime * 0.1f + weightedFrameTime * 0.9f;
-
-      // Update the last frame time
-      lastTicks = curTicks;
 
       // Print the FPS and frame time
       ImGui::Text("FPS: %.1f", (1000.0f / weightedFrameTime));
@@ -163,18 +165,17 @@ void WaveApp::DrawUI()
       ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Displacement", &data.displacementScale, 0.01f, 0.0f, 2.0f, "%.2f");
 
-      static bool wireframe = false;
+      static bool wireframe = waveRenderer->UsesWireframe();
       if (ImGui::Checkbox("Render Wireframe (T)", &wireframe))
         waveRenderer->UseWireframe(wireframe);
-      else if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-      {
-        wireframe = !wireframe;
-        waveRenderer->UseWireframe(wireframe);
-      }
     }
   }
   ImGui::End();
   uiRenderer->End();
+
+  // Handle this outside of window so it works when closed.
+  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+    waveRenderer->ToggleWireframe();
 }
 
 void WaveApp::OnResize(float width, float height)

@@ -82,13 +82,16 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
 
 void Generator::LoadShaders()
 {
-  if (computePS)
-    renderDevice->DestroyComputePipeline(computePS);
+  if (!generatedPS)
+  {
+    if (computePS)
+      renderDevice->DestroyComputePipeline(computePS);
 
-  Vision::ComputePipelineDesc desc;
-  Vision::ShaderCompiler compiler;
-  compiler.CompileFile("resources/spectrum.compute", desc.ComputeKernels);
-  computePS = renderDevice->CreateComputePipeline(desc);
+    Vision::ShaderCompiler compiler;
+    Vision::ComputePipelineDesc desc;
+    compiler.CompileFile("resources/spectrum.compute", desc.ComputeKernels, true);
+    computePS = renderDevice->CreateComputePipeline(desc);
+  }
 }
 
 void Generator::CreateTextures()

@@ -12,8 +12,8 @@ WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* rende
   : renderDevice(device), renderer(render), width(w), height(h)
 {
   camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
-  camera->SetPosition({0.0f, 2.0f, 0.0f});
-  camera->SetRotation({0.0f, -135.0f, 0.0f});
+  camera->SetPosition({0.0f, 5.0f, 0.0f});
+  camera->SetRotation({-10.0f, -135.0f, 0.0f});
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
@@ -105,7 +105,7 @@ void WaveRenderer::GeneratePipelines()
   // Create the shaders by loading from disk and compiling
   Vision::ShaderCompiler compiler;
   std::unordered_map<std::string, Vision::ShaderSPIRV> waveShaders =
-      compiler.CompileFileToMap("resources/waveShader.glsl");
+      compiler.CompileFileToMap("resources/waveShader.glsl", true);
 
   // Create our wave pipeline state
   {
@@ -156,6 +156,7 @@ void WaveRenderer::GenerateBuffers()
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
   wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
+  wavesBufferData.displacementScale = 0.8f;
   wavesBufferData.sunViewAngle = 2.0f;
   wavesBufferData.sunFalloffAngle = 2.0f;
 

@@ -24,7 +24,7 @@ public:
     float planeSize = 20.0f;
     float gravity = 9.8f;
     float scale = 1.0;
-    glm::vec2 windVelocity = glm::vec2(3.0f, 5.0f);
+    glm::vec2 windVelocity = glm::vec2(8.0f, 5.0f);
     float wavelengthMin = 0.0f;
     float wavelengthMax = 0.0f;
     int boundWavelength = 0;
@@ -46,7 +46,9 @@ private:
 private:
   Vision::RenderDevice* renderDevice = nullptr;
   FFTCalculator* fftCalc = nullptr;
-  Vision::ID computePS = 0;
+
+  static inline bool generatedPS = false;
+  static inline Vision::ID computePS = 0;
 
   Vision::ID oceanUBO = 0;
   OceanSettings oceanSettings;

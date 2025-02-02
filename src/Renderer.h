@@ -47,7 +47,10 @@ public:
   static std::size_t GetNumRequiredGenerators() { return 3; }
 
   void Resize(float width, float height);
+
   void UseWireframe(bool wireframe = true) { useWireframe = wireframe; }
+  void ToggleWireframe() { useWireframe = !useWireframe; }
+  bool UsesWireframe() const { return useWireframe; }
 
   void LoadShaders();
 

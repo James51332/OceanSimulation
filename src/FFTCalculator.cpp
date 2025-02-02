@@ -44,11 +44,17 @@ FFTCalculator::FFTCalculator(Vision::RenderDevice* renderDevice, std::size_t siz
   imgDesc.Data = nullptr;
   workImage = device->CreateTexture2D(imgDesc);
 
-  // Load and compile our FFT compute shaders to create the compute pipeline.
-  Vision::ShaderCompiler shaderCompiler;
-  Vision::ComputePipelineDesc pipelineDesc;
-  pipelineDesc.ComputeKernels = shaderCompiler.CompileFile("resources/fft.compute");
-  fftPS = device->CreateComputePipeline(pipelineDesc);
+  // Don't recompile these shaders if we've done it once.
+  if (!generatedPS)
+  {
+    // Load and compile our FFT compute shaders to create the compute pipeline.
+    Vision::ShaderCompiler shaderCompiler;
+    Vision::ComputePipelineDesc pipelineDesc;
+    pipelineDesc.ComputeKernels = shaderCompiler.CompileFile("resources/fft.compute", true);
+    fftPS = device->CreateComputePipeline(pipelineDesc);
+
+    generatedPS = true;
+  }
 }
 
 FFTCalculator::~FFTCalculator()

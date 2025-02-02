@@ -80,7 +80,7 @@ void main()
 
   // We scale based on the depth to the camera.
   float depth = abs(dot(cameraDir, vec3(pos.x, -cameraPos.y, pos.z)));
-  pos.xz *= depth * 0.6;
+  pos.xz *= depth * 0.7;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;

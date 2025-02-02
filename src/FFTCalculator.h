@@ -43,8 +43,9 @@ private:
   // Also track the number of passes since there is no need to recompute each time we encode.
   std::size_t numPasses = 0;
 
-  // THe pipeline state which holds the compute kernels needed to encode the FFT.
-  Vision::ID fftPS;
+  // The pipeline state which holds the compute kernels needed to encode the FFT.
+  static inline bool generatedPS = false;
+  static inline Vision::ID fftPS = 0;
 
   // This is persistent memory within any given render/compute pass. To use different settings,
   // we can allocate this as an array and changed the offset between GPU calls.
