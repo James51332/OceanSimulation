@@ -23,7 +23,7 @@ public:
   void DrawUI();
 
 private:
-  std::size_t textureResolution = 512;
+  std::size_t textureResolution = 256;
   WaveRenderer* waveRenderer = nullptr;
   FFTCalculator* fftCalculator = nullptr;
 

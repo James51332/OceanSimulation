@@ -20,14 +20,14 @@ layout(std140, binding = 1) uniform wavesData
   float disDummy1, diDummy2, disDummy3; // Align to 16 byte data before switching data types.
 
   // Rendering Data
-  vec4 waveColor;        // The color of the water
-  vec4 scatterColor;     // The scatter color of the water
-  vec4 skyColor;         // The color of the sky
-  vec4 lightColor;       // The color of the sun
-  vec3 lightDirection;   // The direction toward the sun
-  float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky
-  float sunFalloffAngle; // The fading angle between the sun and the the sky
-  vec3 skyboxDummy;      // Ensure we are 16-byte aligned
+  vec4 waveColor;                  // The color of the water
+  vec4 scatterColor;               // The scatter color of the water
+  vec4 skyColor;                   // The color of the sky
+  vec4 lightColor;                 // The color of the sun
+  vec3 lightDirection;             // The direction toward the sun
+  float sunViewAngle;              // The amount of viewspace that the sun takes up in the sky
+  float sunFalloffAngle;           // The fading angle between the sun and the the sky
+  float sDummy1, sDummy2, sDummy3; // Ensure we are 16-byte aligned
 };
 
 layout(binding = 0) uniform sampler2D heightMap[3];
@@ -63,7 +63,6 @@ vec4 SampleSkybox(vec3 direction)
 #section type(vertex) name(waveVertex)
 
 layout(location = 0) in vec3 a_Pos;
-layout(location = 3) in vec2 a_UV;
 
 out vec3 v_WorldPos;
 out vec3 v_CameraPos;
@@ -76,11 +75,10 @@ void main()
   vec3 pos = a_Pos;
 
   // Scale and shift based on the position of the camera.
-  vec3 cameraDir = normalize(-viewInverse[2].xyz);
   vec3 cameraPos = viewInverse[3].xyz;
 
   // We scale based on the depth to the camera.
-  pos.xz *= max(length(pos.xz), 5.0) * cameraPos.y * 0.2;
+  pos.xz *= max(length(pos.xz), 1.0) * cameraPos.y * 0.2;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
@@ -193,5 +191,5 @@ out vec4 FragColor;
 void main()
 {
   // We can test if we are working by inverting the colors.
-  FragColor = vec4(vec3(1.0) - texture(ourImage, v_UV).rgb, 1.0);
+  FragColor = vec4(texture(ourImage, v_UV).rgb, 1.0);
 }

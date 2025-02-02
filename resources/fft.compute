@@ -8,7 +8,7 @@ layout(std140, binding = 0) uniform fftSettings
   ivec2 dummy;
 };
 
-#define SIZE 512
+#define SIZE 256
 #define LOG_SIZE int(log2(SIZE))
 #define NUM_CACHES 2
 #define M_PI 3.141592653589793238

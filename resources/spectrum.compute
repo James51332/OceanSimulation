@@ -1,9 +1,9 @@
 #section common
 #version 450 core
 
-#define SIZE 512
+#define SIZE 256
 #define LOG_SIZE int(log2(SIZE))
-#define M_PI 3.141592653589793238462643383279502884197169399375105820974
+#define M_PI 3.14159265358
 
 layout(rgba32f, binding = 0) uniform readonly image2D imgInput;
 layout(rgba32f, binding = 1) uniform writeonly image2D imgOutput;
