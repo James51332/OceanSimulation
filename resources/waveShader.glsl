@@ -6,6 +6,7 @@ layout(std140, binding = 0) uniform rendererData
   mat4 view;                // The view matrix
   mat4 projection;          // The projection matrix
   mat4 viewProjection;      // The view projection matrix
+  mat4 viewInverse;         // The inverse of the view matrix
   vec2 viewportSize;        // The size of the viewport
   float time;               // The time in seconds since the application opened
   float pushConstantsDummy; // Ensure 16-byte alignment
@@ -75,12 +76,11 @@ void main()
   vec3 pos = a_Pos;
 
   // Scale and shift based on the position of the camera.
-  vec3 cameraDir = normalize(-inverse(view)[2].xyz);
-  vec3 cameraPos = inverse(view)[3].xyz;
+  vec3 cameraDir = normalize(-viewInverse[2].xyz);
+  vec3 cameraPos = viewInverse[3].xyz;
 
   // We scale based on the depth to the camera.
-  float depth = abs(dot(cameraDir, vec3(pos.x, -cameraPos.y, pos.z)));
-  pos.xz *= depth * 0.7;
+  pos.xz *= max(length(pos.xz), 5.0) * cameraPos.y * 0.2;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
@@ -95,7 +95,7 @@ void main()
   gl_Position = viewProjection * vec4(pos, 1.0);
 
   v_WorldPos = pos.xyz;
-  v_CameraPos = inverse(view)[3].xyz;
+  v_CameraPos = viewInverse[3].xyz;
 }
 
 #section type(fragment) name(waveFragment)
@@ -130,7 +130,7 @@ void main()
   float ambient = 0.4;
   float diffuse = max(dot(normal, -lightDir), 0) * 0.6;
   float specular = pow(max(dot(reflectionDir, -lightDir), 0), 64) * 0.6;
-  float scatter = max(v_WorldPos.y * 0.15, 0.0);
+  float scatter = max(v_WorldPos.y * 0.05, 0.0);
   float light = diffuse + ambient + specular;
 
   // The color is the product of the light intensity, color at the surface, reflection color.
@@ -166,4 +166,32 @@ out vec4 FragColor;
 void main()
 {
   FragColor = SampleSkybox(texCoord);
+}
+
+#section type(vertex) name(postVertex)
+
+layout(location = 0) in vec3 a_Pos;
+layout(location = 3) in vec2 a_UV;
+
+out vec2 v_UV;
+
+void main()
+{
+  gl_Position = vec4(a_Pos, 1.0);
+  v_UV = a_UV;
+}
+
+#section type(fragment) name(postFragment)
+
+// We use a later binding so that we can still have the other textures declared in common section.
+layout(binding = 9) uniform sampler2D ourImage;
+
+in vec2 v_UV;
+
+out vec4 FragColor;
+
+void main()
+{
+  // We can test if we are working by inverting the colors.
+  FragColor = vec4(vec3(1.0) - texture(ourImage, v_UV).rgb, 1.0);
 }

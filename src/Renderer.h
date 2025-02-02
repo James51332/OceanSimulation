@@ -57,6 +57,7 @@ public:
   WaveRenderData& GetWaveRenderData() { return wavesBufferData; }
 
 private:
+  void GeneratePasses();
   void GeneratePipelines();
   void GenerateBuffers();
 
@@ -66,10 +67,16 @@ private:
   Vision::Renderer* renderer = nullptr;
   float width = 0.0f, height = 0.0f;
   Vision::PerspectiveCamera* camera = nullptr;
+  ID wavePass = 0, postPass = 0;
+
+  // Rendering Framebuffer (used for post processing)
+  ID framebuffer = 0, fbColor = 0;
+  ID postPS = 0;
 
   // Meshes
   Vision::Mesh* planeMesh = nullptr; // surface of water
   Vision::Mesh* cubeMesh = nullptr;  // skybox and light visualization
+  Vision::Mesh* quadMesh = nullptr;  // quad that covers screen for rendering fb
 
   // Pipelines and Shaders
   bool useWireframe = false;

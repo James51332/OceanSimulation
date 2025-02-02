@@ -24,11 +24,11 @@ WaveApp::WaveApp()
     Generator::OceanSettings& settings = generator->GetOceanSettings();
 
     // Set the size of the plane based on increasing prime sizes to prevent tiling.
-    static float primeFactors[] = {13.0, 71.0, 131.0};
+    static float primeFactors[] = {13.0, 71.0, 331.0};
     settings.planeSize = primeFactors[i];
 
     // Enable bound wavelength to prevent frequencies from adding themselves twice.
-    settings.boundWavelength = 0;
+    settings.boundWavelength = 1;
 
     // Each wavelength should be on the smallest plane that it fits on for the most detail.
     settings.wavelengthMax = settings.planeSize / 2.0;
@@ -41,9 +41,8 @@ WaveApp::WaveApp()
   // Create our RenderPass
   Vision::RenderPassDesc rpDesc;
   rpDesc.Framebuffer = 0;
-  rpDesc.LoadOp = Vision::LoadOp::Clear;
+  rpDesc.LoadOp = Vision::LoadOp::Load;
   rpDesc.StoreOp = Vision::StoreOp::Store;
-  rpDesc.ClearColor = {0.5f, 0.5f, 0.5f, 1.0f};
   renderPass = renderDevice->CreateRenderPass(rpDesc);
 }
 
@@ -59,6 +58,13 @@ WaveApp::~WaveApp()
 
 void WaveApp::OnUpdate(float timestep)
 {
+  // Press Esc to close the app
+  if (Vision::Input::KeyPress(SDL_SCANCODE_ESCAPE))
+  {
+    Stop();
+    return;
+  }
+
   waveRenderer->UpdateCamera(timestep);
 
   // Press R to reload shaders
@@ -85,8 +91,10 @@ void WaveApp::OnUpdate(float timestep)
   updateSpectrum = false;
 
   // Then we do our the render pass
-  renderDevice->BeginRenderPass(renderPass);
   waveRenderer->Render(generators);
+
+  // Then we do our UI pass.
+  renderDevice->BeginRenderPass(renderPass);
   DrawUI();
   renderDevice->EndRenderPass();
 

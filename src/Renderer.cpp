@@ -13,11 +13,13 @@ WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* rende
 {
   camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
   camera->SetPosition({0.0f, 5.0f, 0.0f});
-  camera->SetRotation({-10.0f, -135.0f, 0.0f});
+  camera->SetRotation({-5.0f, -135.0f, 0.0f});
 
   planeMesh = Vision::MeshGenerator::CreatePlaneMesh(40.0f, 40.0f, 1024, 1024, true);
   cubeMesh = Vision::MeshGenerator::CreateCubeMesh(1.0f);
+  quadMesh = Vision::MeshGenerator::CreatePlaneMesh(2.0f, 2.0f, 1, 1);
 
+  GeneratePasses();
   GeneratePipelines();
   GenerateBuffers();
 }
@@ -28,10 +30,15 @@ WaveRenderer::~WaveRenderer()
   renderDevice->DestroyPipeline(wavePS);
   renderDevice->DestroyPipeline(wireframePS);
   renderDevice->DestroyPipeline(skyboxPS);
+  renderDevice->DestroyPipeline(postPS);
   renderDevice->DestroyBuffer(wavesBuffer);
+  renderDevice->DestroyFramebuffer(framebuffer);
+  renderDevice->DestroyRenderPass(wavePass);
+  renderDevice->DestroyRenderPass(postPass);
 
   delete planeMesh;
   delete cubeMesh;
+  delete quadMesh;
   delete camera;
 }
 
@@ -45,6 +52,8 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   // This method requires exactly three simulated oceans to work.
   assert(generators.size() == 3);
 
+  // First, we perform our pass that renders to the framebuffer
+  renderDevice->BeginRenderPass(wavePass);
   renderer->Begin(camera);
 
   // Let the GPU know how to access the proper textures
@@ -79,11 +88,27 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   renderer->DrawMesh(cubeMesh, skyboxPS);
 
   renderer->End();
+  renderDevice->EndRenderPass();
+
+  // Now, we perform our pass to the screen using our quad.
+  renderDevice->BeginRenderPass(postPass);
+
+  // Submit our framebuffer texture
+  renderDevice->BindTexture2D(fbColor, 9);
+
+  // Perform a pass without a camera to allow us to render the quad.
+  renderer->Begin(nullptr);
+  renderer->DrawMesh(quadMesh, postPS);
+  renderer->End();
+
+  // Now, we are done!
+  renderDevice->EndRenderPass();
 }
 
 void WaveRenderer::Resize(float w, float h)
 {
   camera->SetWindowSize(w, h);
+  renderDevice->ResizeFramebuffer(framebuffer, w, h);
   width = w;
   height = h;
 }
@@ -98,6 +123,29 @@ void WaveRenderer::LoadShaders()
   }
 
   GeneratePipelines();
+}
+
+void WaveRenderer::GeneratePasses()
+{
+  // Create our framebuffer so that we can render to it.
+  Vision::FramebufferDesc fbDesc;
+  fbDesc.Width = width;
+  fbDesc.Height = height;
+  fbDesc.ColorFormat = Vision::PixelType::BGRA8;
+  fbDesc.DepthType = Vision::PixelType::Depth32Float;
+  framebuffer = renderDevice->CreateFramebuffer(fbDesc);
+  fbColor = renderDevice->GetFramebufferColorTex(framebuffer);
+
+  // Then we create the pass that renders to our framebuffer.
+  Vision::RenderPassDesc desc;
+  desc.LoadOp = Vision::LoadOp::Clear;
+  desc.StoreOp = Vision::StoreOp::Store;
+  desc.Framebuffer = framebuffer;
+  wavePass = renderDevice->CreateRenderPass(desc);
+
+  // Now we create the pass that renders to the screen buffer.
+  desc.Framebuffer = 0;
+  postPass = renderDevice->CreateRenderPass(desc);
 }
 
 void WaveRenderer::GeneratePipelines()
@@ -146,6 +194,22 @@ void WaveRenderer::GeneratePipelines()
 
     skyboxPS = renderDevice->CreateRenderPipeline(psDesc);
   }
+
+  // Create our post processing pipeline
+  {
+    Vision::RenderPipelineDesc psDesc;
+    psDesc.VertexShader = waveShaders["postVertex"];
+    psDesc.PixelShader = waveShaders["postFragment"];
+    psDesc.Layouts = {
+        Vision::BufferLayout({{Vision::ShaderDataType::Float3, "Position"},
+                              {Vision::ShaderDataType::Float3, "Normal"},
+                              {Vision::ShaderDataType::Float4, "Color"},
+                              {Vision::ShaderDataType::Float2, "UV"}}
+        )
+    };
+
+    postPS = renderDevice->CreateRenderPipeline(psDesc);
+  }
 }
 
 void WaveRenderer::GenerateBuffers()
@@ -156,7 +220,7 @@ void WaveRenderer::GenerateBuffers()
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
   wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
-  wavesBufferData.displacementScale = 0.8f;
+  wavesBufferData.displacementScale = 0.95f;
   wavesBufferData.sunViewAngle = 2.0f;
   wavesBufferData.sunFalloffAngle = 2.0f;
 
