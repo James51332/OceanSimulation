@@ -90,12 +90,16 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   else
     renderer->DrawMesh(planeMesh, wavePS);
 
-  renderDevice->EndRenderPass();
+  // Render the skybox so that when we mix to create fog, we don't mix with the clear color.
+  renderer->DrawMesh(cubeMesh, skyboxPS);
 
-  // Draw the skybox, then we'll combine with the ocean.
+  // Now, we switch framebuffers and render the skybox again to a different framebuffer.
+  renderDevice->EndRenderPass();
   renderDevice->BeginRenderPass(skyboxPass);
+
   renderDevice->BindBuffer(wavesBuffer, 1);
   renderer->DrawMesh(cubeMesh, skyboxPS);
+
   renderer->End();
   renderDevice->EndRenderPass();
 
@@ -122,6 +126,7 @@ void WaveRenderer::Resize(float w, float h)
 {
   camera->SetWindowSize(w, h);
   renderDevice->ResizeFramebuffer(framebuffer, w, h);
+  renderDevice->ResizeFramebuffer(skyboxBuffer, w, h);
   width = w;
   height = h;
 }

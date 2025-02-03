@@ -74,7 +74,8 @@ void main()
 
   // Calculate and store the amplitude using the phillips spectrum
   float globalScale = 0.0025;
-  vec2 amp = inRange * globalScale * scale * currentValue * sqrt(phillips(waveNumber, windVelocity, gravity));
+  vec2 amp = inRange * globalScale * scale * currentValue *
+             sqrt(phillips(waveNumber, windVelocity, gravity));
   imageStore(imgOutput, ivec2(thread), vec4(amp, 0.0, 1.0));
 }
 

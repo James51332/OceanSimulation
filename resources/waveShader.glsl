@@ -197,10 +197,12 @@ void main()
   // Compute the color of the fragment by blending sky and waves based on distance.
   vec4 color = vec4(texture(colorTexture, v_UV).rgb, 1.0);
   float depth = texture(depthTexture, v_UV).r;
+
+  // Use some math to undistort the depth buffer which is messed up by projection matrix.
   float ndc = 2.0 * depth - 1.0;
   float linearDepth = (2.0 * near * far) / (far + near - ndc * (far - near));
 
-  // If the depth is less than 10 we don't have fog.
+  // We cull the fog if it is closer than the starting point.
   float fogDensity = 0.0015;
   float fogFactor = max(1.0 - exp(-(linearDepth - fogBegin) * fogDensity), 0.0);
   FragColor = vec4(mix(color, texture(skyboxColor, v_UV), fogFactor).rgb, 1.0);
