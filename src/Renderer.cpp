@@ -11,7 +11,7 @@ namespace Waves
 WaveRenderer::WaveRenderer(Vision::RenderDevice* device, Vision::Renderer* render, float w, float h)
   : renderDevice(device), renderer(render), width(w), height(h)
 {
-  camera = new Vision::PerspectiveCamera(width, height, 0.1f, 1000.0f);
+  camera = new Vision::PerspectiveCamera(width, height, 1.0f, 1500.0f);
   camera->SetPosition({0.0f, 5.0f, 0.0f});
   camera->SetRotation({-5.0f, -135.0f, 0.0f});
 
@@ -33,7 +33,9 @@ WaveRenderer::~WaveRenderer()
   renderDevice->DestroyPipeline(postPS);
   renderDevice->DestroyBuffer(wavesBuffer);
   renderDevice->DestroyFramebuffer(framebuffer);
+  renderDevice->DestroyFramebuffer(skyboxBuffer);
   renderDevice->DestroyRenderPass(wavePass);
+  renderDevice->DestroyRenderPass(skyboxPass);
   renderDevice->DestroyRenderPass(postPass);
 
   delete planeMesh;
@@ -74,6 +76,10 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
     wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
   }
 
+  // Set the camera clipping planes
+  wavesBufferData.cameraNear = camera->GetNear();
+  wavesBufferData.cameraFar = camera->GetFar();
+
   // Set and bind our UBOs.
   renderDevice->SetBufferData(wavesBuffer, &wavesBufferData, sizeof(WaveRenderData));
   renderDevice->BindBuffer(wavesBuffer, 1);
@@ -84,9 +90,12 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   else
     renderer->DrawMesh(planeMesh, wavePS);
 
-  // Draw the skybox wherever the ocean hasn't written to the depthbuffer.
-  renderer->DrawMesh(cubeMesh, skyboxPS);
+  renderDevice->EndRenderPass();
 
+  // Draw the skybox, then we'll combine with the ocean.
+  renderDevice->BeginRenderPass(skyboxPass);
+  renderDevice->BindBuffer(wavesBuffer, 1);
+  renderer->DrawMesh(cubeMesh, skyboxPS);
   renderer->End();
   renderDevice->EndRenderPass();
 
@@ -95,9 +104,13 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
 
   // Submit our framebuffer texture
   renderDevice->BindTexture2D(fbColor, 9);
+  renderDevice->BindTexture2D(fbDepth, 10);
+  renderDevice->BindTexture2D(renderDevice->GetFramebufferColorTex(skyboxBuffer), 11);
 
   // Perform a pass without a camera to allow us to render the quad.
   renderer->Begin(nullptr);
+
+  renderDevice->BindBuffer(wavesBuffer, 1);
   renderer->DrawMesh(quadMesh, postPS);
   renderer->End();
 
@@ -135,6 +148,10 @@ void WaveRenderer::GeneratePasses()
   fbDesc.DepthType = Vision::PixelType::Depth32Float;
   framebuffer = renderDevice->CreateFramebuffer(fbDesc);
   fbColor = renderDevice->GetFramebufferColorTex(framebuffer);
+  fbDepth = renderDevice->GetFramebufferDepthTex(framebuffer);
+
+  // Render the skybox to its own framebuffer and merge.
+  skyboxBuffer = renderDevice->CreateFramebuffer(fbDesc);
 
   // Then we create the pass that renders to our framebuffer.
   Vision::RenderPassDesc desc;
@@ -142,6 +159,10 @@ void WaveRenderer::GeneratePasses()
   desc.StoreOp = Vision::StoreOp::Store;
   desc.Framebuffer = framebuffer;
   wavePass = renderDevice->CreateRenderPass(desc);
+
+  // Here we create our buffer for the skybox
+  desc.Framebuffer = skyboxBuffer;
+  skyboxPass = renderDevice->CreateRenderPass(desc);
 
   // Now we create the pass that renders to the screen buffer.
   desc.Framebuffer = 0;

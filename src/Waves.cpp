@@ -171,6 +171,7 @@ void WaveApp::DrawUI()
       ImGui::DragFloat3("Sun Direction", &data.lightDirection[0], 0.01f, -1.0f, 1.0f, "%.2f");
       ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
+      ImGui::DragFloat("Fog Start", &data.fogBegin, 1.0f, 0.0f, 400.0f, "%.0f");
       ImGui::DragFloat("Displacement", &data.displacementScale, 0.01f, 0.0f, 2.0f, "%.2f");
 
       static bool wireframe = waveRenderer->UsesWireframe();

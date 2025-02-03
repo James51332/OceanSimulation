@@ -20,14 +20,16 @@ layout(std140, binding = 1) uniform wavesData
   float disDummy1, diDummy2, disDummy3; // Align to 16 byte data before switching data types.
 
   // Rendering Data
-  vec4 waveColor;                  // The color of the water
-  vec4 scatterColor;               // The scatter color of the water
-  vec4 skyColor;                   // The color of the sky
-  vec4 lightColor;                 // The color of the sun
-  vec3 lightDirection;             // The direction toward the sun
-  float sunViewAngle;              // The amount of viewspace that the sun takes up in the sky
-  float sunFalloffAngle;           // The fading angle between the sun and the the sky
-  float sDummy1, sDummy2, sDummy3; // Ensure we are 16-byte aligned
+  vec4 waveColor;        // The color of the water
+  vec4 scatterColor;     // The scatter color of the water
+  vec4 skyColor;         // The color of the sky
+  vec4 lightColor;       // The color of the sun
+  vec3 lightDirection;   // The direction toward the sun
+  float sunViewAngle;    // The amount of viewspace that the sun takes up in the sky
+  float sunFalloffAngle; // The fading angle between the sun and the the sky
+  float fogBegin;        // The nearest position that the fog begins
+  float near;            // The near camera clipping plane
+  float far;             // The far camera clipping plane
 };
 
 layout(binding = 0) uniform sampler2D heightMap[3];
@@ -78,7 +80,7 @@ void main()
   vec3 cameraPos = viewInverse[3].xyz;
 
   // We scale based on the depth to the camera.
-  pos.xz *= max(length(pos.xz), 1.0) * cameraPos.y * 0.2;
+  pos.xz *= max(length(pos.xz), 1.0) * clamp(cameraPos.y, 10.0, 30.0) * 0.3;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
@@ -182,7 +184,9 @@ void main()
 #section type(fragment) name(postFragment)
 
 // We use a later binding so that we can still have the other textures declared in common section.
-layout(binding = 9) uniform sampler2D ourImage;
+layout(binding = 9) uniform sampler2D colorTexture;
+layout(binding = 10) uniform sampler2D depthTexture;
+layout(binding = 11) uniform sampler2D skyboxColor;
 
 in vec2 v_UV;
 
@@ -190,6 +194,14 @@ out vec4 FragColor;
 
 void main()
 {
-  // We can test if we are working by inverting the colors.
-  FragColor = vec4(texture(ourImage, v_UV).rgb, 1.0);
+  // Compute the color of the fragment by blending sky and waves based on distance.
+  vec4 color = vec4(texture(colorTexture, v_UV).rgb, 1.0);
+  float depth = texture(depthTexture, v_UV).r;
+  float ndc = 2.0 * depth - 1.0;
+  float linearDepth = (2.0 * near * far) / (far + near - ndc * (far - near));
+
+  // If the depth is less than 10 we don't have fog.
+  float fogDensity = 0.0015;
+  float fogFactor = max(1.0 - exp(-(linearDepth - fogBegin) * fogDensity), 0.0);
+  FragColor = vec4(mix(color, texture(skyboxColor, v_UV), fogFactor).rgb, 1.0);
 }

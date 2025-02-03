@@ -26,9 +26,9 @@ struct WaveRenderData
   glm::vec3 lightDirection = glm::vec3(0.0f, 1.0f, 0.0f); // Direction towards the sun
   float sunViewAngle = 2.0f;                              // The angle of the sun in the sky
   float sunFalloffAngle = 0.0f;                           // The angle between hard edge and sky
-
-  // Ensure that we are 16-byte aligned.
-  glm::vec3 dummy;
+  float fogBegin = 30.0f;                                 // Where the fog begins
+  float cameraNear = 20.0f;                               // The near camera clipping plane
+  float cameraFar = 50.0f;                                // The far camera clipping plane
 };
 
 class WaveRenderer
@@ -67,11 +67,11 @@ private:
   Vision::Renderer* renderer = nullptr;
   float width = 0.0f, height = 0.0f;
   Vision::PerspectiveCamera* camera = nullptr;
-  ID wavePass = 0, postPass = 0;
+  ID wavePass = 0, skyboxPass = 0, postPass = 0;
 
   // Rendering Framebuffer (used for post processing)
-  ID framebuffer = 0, fbColor = 0;
-  ID postPS = 0;
+  ID framebuffer = 0, fbColor = 0, fbDepth = 0;
+  ID skyboxBuffer = 0, sbColor = 0;
 
   // Meshes
   Vision::Mesh* planeMesh = nullptr; // surface of water
@@ -80,7 +80,7 @@ private:
 
   // Pipelines and Shaders
   bool useWireframe = false;
-  ID wavePS = 0, wireframePS = 0, skyboxPS = 0;
+  ID wavePS = 0, wireframePS = 0, skyboxPS = 0, postPS = 0;
 
   // Wave Uniform Buffer
   WaveRenderData wavesBufferData;
