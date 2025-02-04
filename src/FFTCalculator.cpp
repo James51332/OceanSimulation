@@ -61,7 +61,12 @@ FFTCalculator::~FFTCalculator()
 {
   device->DestroyBuffer(fftUBO);
   device->DestroyTexture2D(workImage);
-  device->DestroyComputePipeline(fftPS);
+
+  if (generatedPS)
+  {
+    device->DestroyPipeline(fftPS);
+    generatedPS = false;
+  }
 }
 
 void FFTCalculator::EncodeIFFT(Vision::ID image)

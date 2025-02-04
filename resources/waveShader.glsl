@@ -32,9 +32,9 @@ layout(std140, binding = 1) uniform wavesData
   float far;             // The far camera clipping plane
 };
 
+// Data is tightly packed. Here's how: H, dHdx, dHdz, Dx, Dz, dDxdx, dDzdz, dDxdz
 layout(binding = 0) uniform sampler2D heightMap[3];
-layout(binding = 3) uniform sampler2D slopeMap[3];
-layout(binding = 6) uniform sampler2D displacementMap[3];
+layout(binding = 3) uniform sampler2D displacementMap[3];
 
 #define DEGREE_TO_RADIANS 0.0174533
 
@@ -89,8 +89,12 @@ void main()
   for (int i = 0; i < 3; i++)
   {
     vec2 uv = pos.xz / planeSize[i];
-    pos.xz += displacementScale * texture(displacementMap[i], uv).xz;
-    pos.y += texture(heightMap[i], uv).r;
+    vec4 data1 = texture(heightMap[i], uv);
+    vec4 data2 = texture(displacementMap[i], uv);
+
+    pos.x += displacementScale * data1.w;
+    pos.y += data1.x;
+    pos.z += displacementScale * data2.x;
   }
   gl_Position = viewProjection * vec4(pos, 1.0);
 
@@ -112,7 +116,10 @@ void main()
   for (int i = 0; i < 3; i++)
   {
     vec2 uv = v_WorldPos.xz / planeSize[i];
-    slope += texture(slopeMap[i], uv).rgb;
+    vec4 data1 = texture(heightMap[i], uv);
+
+    // The partials are stored in 2nd and 3rd components
+    slope.xz += data1.yz;
   }
 
   // Calculate our normal vector by crossing the binormal and tangent vector.
@@ -184,9 +191,9 @@ void main()
 #section type(fragment) name(postFragment)
 
 // We use a later binding so that we can still have the other textures declared in common section.
-layout(binding = 9) uniform sampler2D colorTexture;
-layout(binding = 10) uniform sampler2D depthTexture;
-layout(binding = 11) uniform sampler2D skyboxColor;
+layout(binding = 6) uniform sampler2D colorTexture;
+layout(binding = 7) uniform sampler2D depthTexture;
+layout(binding = 8) uniform sampler2D skyboxColor;
 
 in vec2 v_UV;
 

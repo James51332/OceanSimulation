@@ -62,21 +62,13 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   for (int i = 0; i < generators.size(); i++)
   {
     renderDevice->BindTexture2D(generators[i]->GetHeightMap(), i);
-
-    // This is gonna cause us trouble because we cannot actually simply add normals. We must add
-    // slope vectors and then cross multiply to get our final normal. So we are gonna have to do
-    // some restructing to get this to work. Maybe it will save us some math though in the end.
-    renderDevice->BindTexture2D(generators[i]->GetSlopeMap(), i + 3);
-
-    // Displacement is closely related to slope as well, so we can perhaps just send the slope
-    // texture to the renderer and calculate the displacement and normal in the vertex shader.
-    renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 6);
-
+    renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 3);
     // Update our ocean buffer data.
     wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
   }
 
-  // Set the camera clipping planes
+  // Set the camera clipping planes and displacement scale.
+  wavesBufferData.displacementScale = generators[0]->GetOceanSettings().displacement;
   wavesBufferData.cameraNear = camera->GetNear();
   wavesBufferData.cameraFar = camera->GetFar();
 
@@ -106,10 +98,10 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   // Now, we perform our pass to the screen using our quad.
   renderDevice->BeginRenderPass(postPass);
 
-  // Submit our framebuffer texture
-  renderDevice->BindTexture2D(fbColor, 9);
-  renderDevice->BindTexture2D(fbDepth, 10);
-  renderDevice->BindTexture2D(renderDevice->GetFramebufferColorTex(skyboxBuffer), 11);
+  // Submit our framebuffer textures.
+  renderDevice->BindTexture2D(fbColor, 6);
+  renderDevice->BindTexture2D(fbDepth, 7);
+  renderDevice->BindTexture2D(sbColor, 8);
 
   // Perform a pass without a camera to allow us to render the quad.
   renderer->Begin(nullptr);
@@ -157,6 +149,7 @@ void WaveRenderer::GeneratePasses()
 
   // Render the skybox to its own framebuffer and merge.
   skyboxBuffer = renderDevice->CreateFramebuffer(fbDesc);
+  sbColor = renderDevice->GetFramebufferColorTex(skyboxBuffer);
 
   // Then we create the pass that renders to our framebuffer.
   Vision::RenderPassDesc desc;

@@ -6,19 +6,21 @@
 #define M_PI 3.14159265358
 
 layout(rgba32f, binding = 0) uniform readonly image2D imgInput;
-layout(rgba32f, binding = 1) uniform writeonly image2D imgOutput;
+layout(rgba32f, binding = 1) uniform writeonly image2D imgOutput0;
+layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput1;
 
 layout(std140, binding = 0) uniform spectrumSettings
 {
-  float time;
-  float planeSize;
-  float gravity;
-  float scale;
-  vec2 windVelocity;
-  float wavelengthMin;
-  float wavelengthMax;
-  int boundWavelength; // 1 = use wavelength min and max, 0 = don't use wavelength man and min.
-  int dummy1, dummy2, dummy3;
+  float time;           // The time in seconds since the program began.
+  float planeSize;      // The size of the plane in meters that this plane is simulating
+  float gravity;        // The acceleration due to gravity.
+  float scale;          // The global heightmap scalar.
+  vec2 windVelocity;    // The velocity of the wind used to calculate the direction
+  float wavelengthMin;  // The minimum wavelength that is allowed
+  float wavelengthMax;  // The maximum wavelength that is allowed
+  float displacement;   // The scalar used in displacing the vertices.
+  int boundWavelength;  // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
+  float dummy1, dummy2; // Ensure that we are 16-byte aligned
 };
 
 vec2 threadToWaveNumber(vec2 thread)
@@ -30,6 +32,11 @@ vec2 threadToWaveNumber(vec2 thread)
 vec2 complexMultiply(vec2 lhs, vec2 rhs)
 {
   return vec2(lhs.x * rhs.x - lhs.y * rhs.y, lhs.x * rhs.y + lhs.y * rhs.x);
+}
+
+float dispersion(vec2 waveNumber, float gravity)
+{
+  return sqrt(gravity * length(waveNumber));
 }
 
 #section type(compute) name(generateSpectrum)
@@ -76,65 +83,69 @@ void main()
   float globalScale = 0.0025;
   vec2 amp = inRange * globalScale * scale * currentValue *
              sqrt(phillips(waveNumber, windVelocity, gravity));
-  imageStore(imgOutput, ivec2(thread), vec4(amp, 0.0, 1.0));
+  imageStore(imgOutput0, ivec2(thread), vec4(amp, 0.0, 1.0));
 }
 
-#section type(compute) name(propagateWaves)
+#section type(compute) name(prepareFFT)
 
-float dispersion(vec2 waveNumber, float gravity)
-{
-  return sqrt(gravity * length(waveNumber));
-}
-
+// Since we are only working with a real heightmap, we can make an important optimization.
+// Ideally, our FFT only produces real data. To do this, for every wave, we send a complex
+// conjugate wave in the opposite direction. At any given point or time, these two waves will have
+// opposite complex magnitudes, and thus will sum to be only a real number (twice the original).
+// The advantage is that due the linearity of the FFT we can simply add another set of frequencies
+// with this property all multiplied by i to only output complex values. Thus, we can fit four
+// FFTs in a single image, which we take to have two complex values.
 void main()
 {
+  // Get the thread that we are working with, and convert that to a usable wave number.
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
+  vec2 waveDir = normalize(waveNumber);
 
-  // This is the formula given in tessendorf's paper.
-  //   h ̃0(k) exp {iω(k)t}
-  // + h ̃∗0(−k)exp{−iω(k)t}
-
+  // Get the amplitude of our current wave, and propogate it through space at the rate determined by
+  // the dispersion relation.
   vec2 amplitude = imageLoad(imgInput, ivec2(thread)).xy;
   float phase = dispersion(waveNumber, gravity) * time;
+
+  // Propogate using eulers formula.
   vec2 wave = vec2(cos(phase), sin(phase));
   amplitude = complexMultiply(amplitude, wave);
 
+  // The opposite wave will be sending out its conjugate wave this direction.
   vec2 oppAmplitude = imageLoad(imgInput, ivec2(SIZE - thread)).xy;
-  oppAmplitude.y *= -1.0;
-  wave.y *= -1.0;
   oppAmplitude = complexMultiply(oppAmplitude, wave);
 
-  imageStore(imgOutput, ivec2(thread), vec4(amplitude + oppAmplitude, 0.0, 1.0));
-}
+  // Make this a conjugate wave.
+  oppAmplitude.y *= -1.0;
 
-#section type(compute) name(prepareSlopeMap)
+  // The total spatial amplitude is the sum of the amplitude and the opposite amplitude.
+  vec2 heightAmp = amplitude + oppAmplitude;
+  vec2 heightAmpTimesi = vec2(-heightAmp.y, heightAmp.x);
 
-void main()
-{
-  vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 waveNumber = threadToWaveNumber(thread);
+  // Next, we need to calculate the slope and displacement map, and certain respective partial
+  // derivatives which are important for lighting. First, we take the partials of the heightmap
+  // w.r.t x and z so that we can calculate normals. Thankfully, all we have to do it take each wave
+  // and multiply by i and the component of the wave number in each direction.
+  vec2 dhdx = waveNumber.x * vec2(-heightAmp.y, heightAmp.x);
+  vec2 dhdz = waveNumber.y * vec2(-heightAmp.y, heightAmp.x);
 
-  // Determine this waves contribution to slope of final image
-  vec2 currentAmp = imageLoad(imgInput, ivec2(thread)).xy;
-  vec2 xDerivative = waveNumber.x * vec2(-currentAmp.y, currentAmp.x);
-  vec2 zDerivative = waveNumber.y * vec2(-currentAmp.y, currentAmp.x);
+  // The next few are the displacement, which are difficult to calculate. We need the displacement
+  // vectors for both the x and z coordinates, as well as the partial derivatives of this w.r.t x
+  // and z for calculating the jacobian of the matrix (detect local inversion to spawn foam). The
+  // displacement is basically in the same direction as the derivative, so that we push the steep
+  // parts toward their peaks.
+  vec2 disX = waveDir.x * heightAmpTimesi;
+  vec2 disZ = waveDir.y * heightAmpTimesi;
 
-  imageStore(imgOutput, ivec2(thread), vec4(xDerivative, zDerivative));
-}
+  // We use algebra for these, and it happens to work out so that we just multiply the amplitudes by
+  // the directions with one of them being normalized.
+  vec2 dDXdx = waveNumber.x * waveDir.x * heightAmp;
+  vec2 dDZdz = waveNumber.y * waveDir.y * heightAmp;
+  vec2 dDXdz = waveNumber.y * waveDir.x * heightAmp;
 
-#section type(compute) name(prepareDisplacementMap)
-
-void main()
-{
-  vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 waveNumber = threadToWaveNumber(thread);
-  vec2 waveDir = waveNumber == vec2(0.0) ? waveNumber : normalize(waveNumber);
-
-  // Displacement vector = -i * k/|k| * exp(i * dot(k,x));
-  vec2 currentAmp = imageLoad(imgInput, ivec2(thread)).xy;
-  vec2 xDisplacementSignal = -waveDir.x * vec2(currentAmp.y, -currentAmp.x);
-  vec2 zDisplacementSignal = -waveDir.y * vec2(currentAmp.y, -currentAmp.x);
-
-  imageStore(imgOutput, ivec2(thread), vec4(xDisplacementSignal, zDisplacementSignal));
+  // Now, we have to combine our FFTs into a the image. We multiply the second FFT by i to pack.
+  vec4 output0 = vec4(heightAmp.x - dhdx.y, heightAmp.y + dhdx.x, dhdz.x - disX.y, dhdz.y + disX.x);
+  vec4 output1 = vec4(disZ.x - dDXdx.y, disZ.y + dDXdx.x, dDZdz.x - dDXdz.y, dDZdz.y + dDXdz.x);
+  imageStore(imgOutput0, ivec2(thread), output0);
+  imageStore(imgOutput1, ivec2(thread), output1);
 }

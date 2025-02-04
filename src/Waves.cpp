@@ -21,7 +21,7 @@ WaveApp::WaveApp()
   {
     // Create our generator and configure
     Generator* generator = new Generator(renderDevice, fftCalculator);
-    Generator::OceanSettings& settings = generator->GetOceanSettings();
+    OceanSettings& settings = generator->GetOceanSettings();
 
     // Set the size of the plane based on increasing prime sizes to prevent tiling.
     static float primeFactors[] = {13.0, 71.0, 331.0};
@@ -70,8 +70,8 @@ void WaveApp::OnUpdate(float timestep)
   // Press R to reload shaders
   if (Vision::Input::KeyPress(SDL_SCANCODE_R))
   {
-    for (auto* generator : generators)
-      generator->LoadShaders();
+    // We only need to reload one shader since the generators share a pipeline state.
+    generators[0]->LoadShaders(true);
     waveRenderer->LoadShaders();
   }
 
@@ -132,14 +132,15 @@ void WaveApp::DrawUI()
     // Simulation Settings
     if (ImGui::CollapsingHeader("Simulation"))
     {
-      Generator::OceanSettings& settings = generators[0]->GetOceanSettings();
-      Generator::OceanSettings& settings1 = generators[1]->GetOceanSettings();
-      Generator::OceanSettings& settings2 = generators[2]->GetOceanSettings();
+      OceanSettings& settings = generators[0]->GetOceanSettings();
+      OceanSettings& settings1 = generators[1]->GetOceanSettings();
+      OceanSettings& settings2 = generators[2]->GetOceanSettings();
 
       // clang-format off
       updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f, 0.0f, 20.0f, "%.2f");
       updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f, 1.0f, 20.0f, "%.2f");
       updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f, 0.05f, 5.0f, "%.2f");
+      updateSpectrum |= ImGui::DragFloat("Displacement", &settings.displacement, 0.01f, 0.0f, 2.0f, "%.2f");
 
       static const char* text[] = {"Plane 1", "Plane 2", "Plane 3"};
       updateSpectrum |= ImGui::DragFloat(text[0], &settings.planeSize, 0.1f, 1.0f, settings1.planeSize, "%.1f");
@@ -151,7 +152,7 @@ void WaveApp::DrawUI()
       {
         for (auto& generator : generators)
         {
-          Generator::OceanSettings& toChange = generator->GetOceanSettings();
+          OceanSettings& toChange = generator->GetOceanSettings();
           toChange.windVelocity = settings.windVelocity;
           toChange.gravity = settings.gravity;
           toChange.scale = settings.scale;
@@ -172,7 +173,6 @@ void WaveApp::DrawUI()
       ImGui::DragFloat("Sun Size", &data.sunViewAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Sun Fade", &data.sunFalloffAngle, 0.1f, 0.0f, 40.0f, "%.1f");
       ImGui::DragFloat("Fog Start", &data.fogBegin, 1.0f, 0.0f, 400.0f, "%.0f");
-      ImGui::DragFloat("Displacement", &data.displacementScale, 0.01f, 0.0f, 2.0f, "%.2f");
 
       static bool wireframe = waveRenderer->UsesWireframe();
       if (ImGui::Checkbox("Render Wireframe (T)", &wireframe))

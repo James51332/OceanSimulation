@@ -15,7 +15,7 @@ Generator::Generator(Vision::RenderDevice* device, FFTCalculator* calc)
   : renderDevice(device), fftCalc(calc), textureSize(calc->GetTextureResolution())
 {
   LoadShaders();
-  CreateTextures();
+  GenerateTextures();
 
   Vision::BufferDesc oceanDesc;
   oceanDesc.DebugName = "Ocean Settings";
@@ -28,15 +28,18 @@ Generator::Generator(Vision::RenderDevice* device, FFTCalculator* calc)
 
 Generator::~Generator()
 {
+  if (generatedPS)
+  {
+    renderDevice->DestroyComputePipeline(computePS);
+    generatedPS = false;
+  }
+
   renderDevice->DestroyTexture2D(heightMap);
-  renderDevice->DestroyTexture2D(slopeMap);
   renderDevice->DestroyTexture2D(displacementMap);
   renderDevice->DestroyTexture2D(gaussianImage);
   renderDevice->DestroyTexture2D(initialSpectrum);
 
   renderDevice->DestroyBuffer(oceanUBO);
-
-  renderDevice->DestroyComputePipeline(computePS);
 }
 
 void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
@@ -55,34 +58,25 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
     GenerateSpectrum();
   }
 
-  // Generate the phillips spectrum based on the given time
+  // Generate the phillips spectrum based on the given time, then prepare the necessary fourier
+  // transforms to also calculate the displacement and slopes.
   renderDevice->BindImage2D(initialSpectrum, 0);
   renderDevice->BindImage2D(heightMap, 1);
-  renderDevice->DispatchCompute(computePS, "propagateWaves", {textureSize, textureSize, 1});
+  renderDevice->BindImage2D(displacementMap, 2);
+  renderDevice->DispatchCompute(computePS, "prepareFFT", {textureSize, textureSize, 1});
 
-  // Prepare the normal map FFT
-  renderDevice->BindImage2D(heightMap, 0);
-  renderDevice->BindImage2D(slopeMap, 1);
-  renderDevice->DispatchCompute(computePS, "prepareSlopeMap", {textureSize, textureSize, 1});
-
-  // Prepare the displacement map FFT
-  renderDevice->BindImage2D(heightMap, 0);
-  renderDevice->BindImage2D(displacementMap, 1);
-  renderDevice->DispatchCompute(computePS, "prepareDisplacementMap", {textureSize, textureSize, 1});
-
-  // Ensure that none of our FFTs operate before we are ready
+  // Ensure that none of our FFTs operate before we are ready.
   renderDevice->ImageBarrier();
 
   fftCalc->EncodeIFFT(heightMap);
-  fftCalc->EncodeIFFT(slopeMap);
   fftCalc->EncodeIFFT(displacementMap);
 
   renderDevice->EndComputePass();
 }
 
-void Generator::LoadShaders()
+void Generator::LoadShaders(bool reload)
 {
-  if (!generatedPS)
+  if (!generatedPS || reload)
   {
     if (computePS)
       renderDevice->DestroyComputePipeline(computePS);
@@ -94,13 +88,12 @@ void Generator::LoadShaders()
   }
 }
 
-void Generator::CreateTextures()
+void Generator::GenerateTextures()
 {
   // Delete any textures in case we are regenerating
   if (heightMap)
   {
     renderDevice->DestroyTexture2D(heightMap);
-    renderDevice->DestroyTexture2D(slopeMap);
     renderDevice->DestroyTexture2D(displacementMap);
     renderDevice->DestroyTexture2D(gaussianImage);
     renderDevice->DestroyTexture2D(initialSpectrum);
@@ -119,7 +112,6 @@ void Generator::CreateTextures()
   desc.Data = nullptr;
 
   heightMap = renderDevice->CreateTexture2D(desc);
-  slopeMap = renderDevice->CreateTexture2D(desc);
   displacementMap = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
   initialSpectrum = renderDevice->CreateTexture2D(desc);
