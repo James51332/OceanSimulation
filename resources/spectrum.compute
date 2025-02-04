@@ -100,7 +100,7 @@ void main()
   // Get the thread that we are working with, and convert that to a usable wave number.
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
   vec2 waveNumber = threadToWaveNumber(thread);
-  vec2 waveDir = normalize(waveNumber);
+  vec2 waveDir = waveNumber == vec2(0.0) ? waveNumber : normalize(waveNumber);
 
   // Get the amplitude of our current wave, and propogate it through space at the rate determined by
   // the dispersion relation.
