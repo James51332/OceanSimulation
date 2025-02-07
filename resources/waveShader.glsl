@@ -35,6 +35,7 @@ layout(std140, binding = 1) uniform wavesData
 // Data is tightly packed. Here's how: H, dHdx, dHdz, Dx, Dz, dDxdx, dDzdz, dDxdz
 layout(binding = 0) uniform sampler2D heightMap[3];
 layout(binding = 3) uniform sampler2D displacementMap[3];
+layout(binding = 6) uniform sampler2D jacobianMap[3];
 
 #define DEGREE_TO_RADIANS 0.0174533
 
@@ -74,19 +75,30 @@ void main()
   // Our approach to tesselation is to make the grid more sparse as we increase our distance.
   // Since as distance increases, portion of eye spaces decrease inversely, we can invert our
   // distances to transform our plane into a plane with a roughly constant eye-space density.
-  vec3 pos = a_Pos;
+  vec3 pos = a_Pos + vec3(15.0, 0.0, 15.0);
+
+  vec3 forward = -viewInverse[0].xyz;
+  vec2 horizontalAngle = normalize(forward.xz);
+
+  float sqrtHalf = 0.70711;
+  horizontalAngle =
+      vec2(horizontalAngle.x - horizontalAngle.y, horizontalAngle.x + horizontalAngle.y);
+  horizontalAngle *= sqrtHalf;
+
+  pos.xz = vec2(horizontalAngle.x * pos.x - horizontalAngle.y * pos.z,
+                pos.x * horizontalAngle.y + pos.z * horizontalAngle.x);
 
   // Scale and shift based on the position of the camera.
   vec3 cameraPos = viewInverse[3].xyz;
 
   // We scale based on the depth to the camera.
-  pos.xz *= max(length(pos.xz), 1.0) * clamp(cameraPos.y, 10.0, 30.0) * 0.3;
+  pos.xz *= pow(max(length(pos.xz), 1.0), 1.2) * 0.4;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
 
   // Now we can continue as before.
-  for (int i = 0; i < 3; i++)
+  for (int i = 0; i < 1; i++)
   {
     vec2 uv = pos.xz / planeSize[i];
     vec4 data1 = texture(heightMap[i], uv);
@@ -113,13 +125,17 @@ void main()
 {
   // We calculate the slope of the wave surface at each point to get normal vectors for lighting.
   vec3 slope = vec3(0.0);
-  for (int i = 0; i < 3; i++)
+  vec4 jacobian = vec4(0.0);
+  for (int i = 0; i < 1; i++)
   {
     vec2 uv = v_WorldPos.xz / planeSize[i];
     vec4 data1 = texture(heightMap[i], uv);
 
     // The partials are stored in 2nd and 3rd components
     slope.xz += data1.yz;
+
+    // Compute the jacobian as well.
+    jacobian += vec4(texture(jacobianMap[i], uv).r);
   }
 
   // Calculate our normal vector by crossing the binormal and tangent vector.
@@ -134,14 +150,22 @@ void main()
   vec3 reflectionDir = reflect(-camDir, normal);
 
   // Our intensity is the combination of these factors
-  float ambient = 0.4;
-  float diffuse = max(dot(normal, -lightDir), 0) * 0.6;
-  float specular = pow(max(dot(reflectionDir, -lightDir), 0), 64) * 0.6;
-  float scatter = max(v_WorldPos.y * 0.05, 0.0);
+  float ambient = 0.5;
+  float diffuse = max(dot(normal, -lightDir), 0) * 0.3;
+  float specular = pow(max(dot(reflectionDir, -lightDir), 0), 32) * 0.5;
+  float scatter = max(v_WorldPos.y * 0.1, 0.0);
   float light = diffuse + ambient + specular;
 
   // The color is the product of the light intensity, color at the surface, reflection color.
-  vec3 color = light * waveColor.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
+  vec4 foamColor = vec4(0.85, 0.85, 0.85, 1.0);
+  float foamThreshold = 0.3;
+  // jacobian.r = jacobian.r * step(foamThreshold, jacobian.r);
+  jacobian.r = pow(jacobian.r * 1.2, 1.3);
+  vec4 colorWave = mix(waveColor, foamColor, jacobian.r);
+  vec3 color = light * colorWave.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
+
+  // color = vec3(jacobian.r);
+
   FragColor = vec4(color, 1.0);
 }
 
@@ -191,9 +215,9 @@ void main()
 #section type(fragment) name(postFragment)
 
 // We use a later binding so that we can still have the other textures declared in common section.
-layout(binding = 6) uniform sampler2D colorTexture;
-layout(binding = 7) uniform sampler2D depthTexture;
-layout(binding = 8) uniform sampler2D skyboxColor;
+layout(binding = 9) uniform sampler2D colorTexture;
+layout(binding = 10) uniform sampler2D depthTexture;
+layout(binding = 11) uniform sampler2D skyboxColor;
 
 in vec2 v_UV;
 

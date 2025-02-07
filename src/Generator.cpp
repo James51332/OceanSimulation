@@ -71,6 +71,14 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
   fftCalc->EncodeIFFT(heightMap);
   fftCalc->EncodeIFFT(displacementMap);
 
+  renderDevice->ImageBarrier();
+
+  // Once this is done, we compute the jacobian determinant to get the foam texture
+  renderDevice->BindBuffer(oceanUBO);
+  renderDevice->BindImage2D(displacementMap, 0);
+  renderDevice->BindImage2D(jacobian, 3);
+  renderDevice->DispatchCompute(computePS, "computeFoam", {textureSize, textureSize, 1});
+
   renderDevice->EndComputePass();
 }
 
@@ -97,6 +105,7 @@ void Generator::GenerateTextures()
     renderDevice->DestroyTexture2D(displacementMap);
     renderDevice->DestroyTexture2D(gaussianImage);
     renderDevice->DestroyTexture2D(initialSpectrum);
+    renderDevice->DestroyTexture2D(jacobian);
   }
 
   // Create our blank textures
@@ -115,6 +124,10 @@ void Generator::GenerateTextures()
   displacementMap = renderDevice->CreateTexture2D(desc);
   gaussianImage = renderDevice->CreateTexture2D(desc);
   initialSpectrum = renderDevice->CreateTexture2D(desc);
+
+  // The jacobian only has one channel.
+  desc.PixelType = Vision::PixelType::R32Float;
+  jacobian = renderDevice->CreateTexture2D(desc);
 
   GenerateNoise();
 }

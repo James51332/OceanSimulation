@@ -63,6 +63,7 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   {
     renderDevice->BindTexture2D(generators[i]->GetHeightMap(), i);
     renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 3);
+    renderDevice->BindTexture2D(generators[i]->GetJacobianMap(), i + 6);
     // Update our ocean buffer data.
     wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
   }
@@ -99,9 +100,9 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   renderDevice->BeginRenderPass(postPass);
 
   // Submit our framebuffer textures.
-  renderDevice->BindTexture2D(fbColor, 6);
-  renderDevice->BindTexture2D(fbDepth, 7);
-  renderDevice->BindTexture2D(sbColor, 8);
+  renderDevice->BindTexture2D(fbColor, 9);
+  renderDevice->BindTexture2D(fbDepth, 10);
+  renderDevice->BindTexture2D(sbColor, 11);
 
   // Perform a pass without a camera to allow us to render the quad.
   renderer->Begin(nullptr);
@@ -239,7 +240,6 @@ void WaveRenderer::GenerateBuffers()
   wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
   wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
   wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
-  wavesBufferData.displacementScale = 0.95f;
   wavesBufferData.sunViewAngle = 2.0f;
   wavesBufferData.sunFalloffAngle = 2.0f;
 

@@ -24,11 +24,11 @@ WaveApp::WaveApp()
     OceanSettings& settings = generator->GetOceanSettings();
 
     // Set the size of the plane based on increasing prime sizes to prevent tiling.
-    static float primeFactors[] = {13.0, 71.0, 331.0};
+    static float primeFactors[] = {29.0, 61.0, 101.0};
     settings.planeSize = primeFactors[i];
 
     // Enable bound wavelength to prevent frequencies from adding themselves twice.
-    settings.boundWavelength = 1;
+    settings.boundWavelength = 0;
 
     // Each wavelength should be on the smallest plane that it fits on for the most detail.
     settings.wavelengthMax = settings.planeSize / 2.0;
@@ -82,6 +82,9 @@ void WaveApp::OnUpdate(float timestep)
 
   // Begin recording commands
   renderDevice->BeginCommandBuffer();
+
+  if (Vision::Input::KeyDown(SDL_SCANCODE_Q))
+    timestep = 0.0f;
 
   // First, we do the waves pass
   for (auto* generator : generators)
@@ -156,6 +159,17 @@ void WaveApp::DrawUI()
           toChange.windVelocity = settings.windVelocity;
           toChange.gravity = settings.gravity;
           toChange.scale = settings.scale;
+          toChange.displacement = settings.displacement;
+        }
+
+        for (int i = 0; i < waveRenderer->GetNumRequiredGenerators(); i++)
+        {
+          OceanSettings& settings = generators[i]->GetOceanSettings();
+
+          // Each wavelength should be on the smallest plane that it fits on for the most detail.
+          settings.wavelengthMax = settings.planeSize / 2.0;
+          settings.wavelengthMin =
+              (i == 0) ? 0.0 : generators[i - 1]->GetOceanSettings().planeSize / 2.0;
         }
       }
     }

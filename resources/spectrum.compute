@@ -36,7 +36,11 @@ vec2 complexMultiply(vec2 lhs, vec2 rhs)
 
 float dispersion(vec2 waveNumber, float gravity)
 {
-  return sqrt(gravity * length(waveNumber));
+  float k = length(waveNumber);
+  // if (2 * 3.14159 / k > 0.05)
+  return sqrt(gravity * k);
+  // else
+  return sqrt(gravity * k * (1.0 + k * k));
 }
 
 #section type(compute) name(generateSpectrum)
@@ -80,7 +84,7 @@ void main()
   vec2 currentValue = imageLoad(imgInput, ivec2(thread)).xy;
 
   // Calculate and store the amplitude using the phillips spectrum
-  float globalScale = 0.0025;
+  float globalScale = 0.5 / planeSize;
   vec2 amp = inRange * globalScale * scale * currentValue *
              sqrt(phillips(waveNumber, windVelocity, gravity));
   imageStore(imgOutput0, ivec2(thread), vec4(amp, 0.0, 1.0));
@@ -139,13 +143,43 @@ void main()
 
   // We use algebra for these, and it happens to work out so that we just multiply the amplitudes by
   // the directions with one of them being normalized.
-  vec2 dDXdx = waveNumber.x * waveDir.x * heightAmp;
-  vec2 dDZdz = waveNumber.y * waveDir.y * heightAmp;
-  vec2 dDXdz = waveNumber.y * waveDir.x * heightAmp;
+  vec2 dDXdx = -waveNumber.x * waveDir.x * heightAmp;
+  vec2 dDZdz = -waveNumber.y * waveDir.y * heightAmp;
+  vec2 dDXdz = -waveNumber.y * waveDir.x * heightAmp;
 
   // Now, we have to combine our FFTs into a the image. We multiply the second FFT by i to pack.
   vec4 output0 = vec4(heightAmp.x - dhdx.y, heightAmp.y + dhdx.x, dhdz.x - disX.y, dhdz.y + disX.x);
   vec4 output1 = vec4(disZ.x - dDXdx.y, disZ.y + dDXdx.x, dDZdz.x - dDXdz.y, dDZdz.y + dDXdz.x);
   imageStore(imgOutput0, ivec2(thread), output0);
   imageStore(imgOutput1, ivec2(thread), output1);
+}
+
+#section type(compute) name(computeFoam)
+
+layout(r32f, binding = 3) uniform image2D jacobianTexture;
+
+void main()
+{
+  vec2 thread = vec2(gl_GlobalInvocationID.xy);
+
+  // Jacobian determinant is equal to JxxJyy - Jxy^2
+  vec4 data = imageLoad(imgInput, ivec2(thread));
+  float dDxdx = data.y;
+  float dDzdz = data.z;
+  float dDxdz = data.w;
+
+  float jacobian = (1.0 + displacement * dDxdx) * (1.0 + displacement * dDzdz) -
+                   displacement * displacement * dDxdz * dDxdz;
+  float current = imageLoad(jacobianTexture, ivec2(thread)).r;
+
+  // TODO: Don't hard code these values.
+  // current *= exp(-0.05);
+  current += 0.6 * max(0.7 - jacobian, 0.0);
+  current *= 0.95;
+  current = clamp(current, 0, 1);
+  // current = current + 0.004 * 0.5 / max(jacobian, 0.5);
+  // current = min(current, -0.05 + jacobian);
+  // // current *= 0.995;
+
+  imageStore(jacobianTexture, ivec2(thread), vec4(current));
 }

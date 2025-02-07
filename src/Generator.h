@@ -18,7 +18,7 @@ struct OceanSettings
   glm::vec2 windVelocity = glm::vec2(8.0f, 5.0f);
   float wavelengthMin = 0.0f;
   float wavelengthMax = 0.0f;
-  float displacement = 0.0f;
+  float displacement = 1.0f;
   int boundWavelength = 0;
   float dummy1, dummy2;
 };
@@ -41,6 +41,7 @@ public:
   // Getter for the two textures used by wave shader to render.
   Vision::ID GetHeightMap() const { return heightMap; }
   Vision::ID GetDisplacementMap() const { return displacementMap; }
+  Vision::ID GetJacobianMap() const { return jacobian; }
 
   // Reload the shaders that are used by this class.
   void LoadShaders(bool reload = false);

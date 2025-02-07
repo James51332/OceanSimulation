@@ -4,6 +4,7 @@
 
 #include "renderer/RenderDevice.h"
 #include "renderer/Renderer.h"
+#include "renderer/Renderer2D.h"
 
 #include "Generator.h"
 
@@ -15,7 +16,7 @@ struct WaveRenderData
 {
   // Simulation Data
   glm::vec4 planeSize = glm::vec4(0.0f); // The size of the three planes that make up our water
-  float displacementScale = 0.1f;        // The scale of the displacment of the water
+  float displacementScale = 1.0f;        // The scale of the displacment of the water
   float dDummy1, dDummy2, dDummy3;       // Align to 16 byte data before switching data types
 
   // Rendering Data

@@ -57,6 +57,7 @@ FFTCalculator::FFTCalculator(Vision::RenderDevice* renderDevice, std::size_t siz
   }
 }
 
+
 FFTCalculator::~FFTCalculator()
 {
   device->DestroyBuffer(fftUBO);
