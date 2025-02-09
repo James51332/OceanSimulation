@@ -2,7 +2,7 @@
 
 int main()
 {
-  Waves::WaveApp *app = new Waves::WaveApp();
+  Waves::WaveApp* app = new Waves::WaveApp();
   app->Run();
   delete app;
 }

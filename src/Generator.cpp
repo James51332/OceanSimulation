@@ -21,7 +21,7 @@ Generator::Generator(Vision::RenderDevice* device, FFTCalculator* calc)
   oceanDesc.DebugName = "Ocean Settings";
   oceanDesc.Type = Vision::BufferType::Uniform;
   oceanDesc.Usage = Vision::BufferUsage::Dynamic;
-  oceanDesc.Size = sizeof(OceanSettings);
+  oceanDesc.Size = sizeof(GeneratorSettings);
   oceanDesc.Data = &oceanSettings;
   oceanUBO = renderDevice->CreateBuffer(oceanDesc);
 }
@@ -48,7 +48,7 @@ void Generator::CalculateOcean(float timestep, bool userUpdatedSpectrum)
 
   // Update our ocean's settings
   oceanSettings.time += timestep;
-  renderDevice->SetBufferData(oceanUBO, &oceanSettings, sizeof(OceanSettings));
+  renderDevice->SetBufferData(oceanUBO, &oceanSettings, sizeof(GeneratorSettings));
   renderDevice->BindBuffer(oceanUBO);
 
   // Update the spectrum if needed

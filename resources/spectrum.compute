@@ -1,8 +1,6 @@
 #section common
-#version 450 core
+#version 460 core
 
-#define SIZE 256
-#define LOG_SIZE int(log2(SIZE))
 #define M_PI 3.14159265358
 
 layout(rgba32f, binding = 0) uniform readonly image2D imgInput;
@@ -11,83 +9,169 @@ layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput1;
 
 layout(std140, binding = 0) uniform spectrumSettings
 {
-  float time;           // The time in seconds since the program began.
-  float planeSize;      // The size of the plane in meters that this plane is simulating
-  float gravity;        // The acceleration due to gravity.
-  float scale;          // The global heightmap scalar.
-  vec2 windVelocity;    // The velocity of the wind used to calculate the direction
-  float wavelengthMin;  // The minimum wavelength that is allowed
-  float wavelengthMax;  // The maximum wavelength that is allowed
-  float displacement;   // The scalar used in displacing the vertices.
-  int boundWavelength;  // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
-  float dummy1, dummy2; // Ensure that we are 16-byte aligned
+  ivec2 seed;         // The seed for random generation.
+  float U_10;         // The speed of the wind.
+  float theta_0;      // The CCW direction of the wind rel. to +x-axis.
+  float F;            // The distance to a downwind shore (fetch).
+  float g;            // The acceleration due to gravity.
+  float swell;        // The factor of non-wind based waves.
+  float h;            // The depth of the ocean.
+  float displacement; // The scalar used in displacing the vertices.
+  float time;         // The time in seconds since the program began.
+  float planeSize;    // The size of the plane in meters that this plane is simulating.
+  float omega_p;
+  float scale;  // The global heightmap scalar.
+  float spread; // The spread of direction of waves.
+  float detail;
+  int boundWavelength; // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
+  float wavelengthMin; // The minimum wavelength that is allowed
+  float wavelengthMax; // The maximum wavelength that is allowed
+  float d1, d2, d3;
 };
 
-vec2 threadToWaveNumber(vec2 thread)
-{
-  vec2 frequency = thread - SIZE / 2;
-  return 2.0 * M_PI * frequency / planeSize;
-}
-
-vec2 complexMultiply(vec2 lhs, vec2 rhs)
+vec2 ComplexMultiply(vec2 lhs, vec2 rhs)
 {
   return vec2(lhs.x * rhs.x - lhs.y * rhs.y, lhs.x * rhs.y + lhs.y * rhs.x);
 }
 
-float dispersion(vec2 waveNumber, float gravity)
+float sigma = 0.072; // surface tension of water 72 milliNewtons/meter
+float rho = 1000;    // density of water in kg/m^3
+
+// The angular frequency of any with with a given wave number.
+float Dispersion(float k)
 {
-  float k = length(waveNumber);
-  // if (2 * 3.14159 / k > 0.05)
-  return sqrt(gravity * k);
-  // else
-  return sqrt(gravity * k * (1.0 + k * k));
+  float kh = k * h;
+  float tanhKH = kh >= 2.0 * M_PI ? 1.0 : tanh(kh);
+  float omegaSquared = (g * k + sigma / rho * k * k * k) * tanhKH;
+  return sqrt(omegaSquared);
 }
 
 #section type(compute) name(generateSpectrum)
 
-float phillips(vec2 waveNumber, vec2 windVelocity, float gravity)
+// When we switch to a directional and dimensionless spectrum, we need the partial derivative of the
+// angular frequency with respect to the length of the wavenubmer.
+float DispersionDerivative(float k)
 {
-  float waveNumberLength = length(waveNumber);
-  if (waveNumberLength == 0.0)
-    return 0.0;
+  float phi = Dispersion(k);
+  float sech = 1.0 / cosh(h * k);
 
-  float waveNumberLength2 = waveNumberLength * waveNumberLength;
-  float waveNumberLength4 = waveNumberLength2 * waveNumberLength2;
-  vec2 waveNumberDir = normalize(waveNumber);
+  float numerator = h * (sigma / rho * k * k * k + g * k) * sech * sech + phi * phi;
+  return numerator / (2 * phi);
+}
 
-  float windSpeed = length(windVelocity);
-  vec2 windDir = normalize(windVelocity);
+// Dimensionless Jonswap Spectrum
+float JonswapSpectrum(float k, float omega, float omega_p)
+{
+  // These are the constants that we compute to calculate the spectrum.
+  float alpha = 0.076 * pow(U_10 * U_10 / (F * g), 0.22);
+  float gamma = 3.3;
+  float sigma = omega > omega_p ? 0.09 : 0.07;
 
-  float waveDotWind = dot(waveNumberDir, windDir);
-  float waveDotWind2 = waveDotWind * waveDotWind;
+  // I am not really sure how this is derived, but it comes from the ocean...
+  // Sj(omega) = alpha * g^2 / omega^5 * -1.25 * (omega_p / omega) ^ 4 * gamma^r
+  // r = exp(-(omega - omega_p)^2 / (2 * sigma^2 * omega_p^2))
+  float omegaDiff = abs(omega - omega_p);
+  float omegaRatio = omega_p / omega;
+  float r = exp(-omegaDiff * omegaDiff / (2.0 * sigma * sigma * omega_p * omega_p));
+  float S = alpha * g * g / pow(omega, 5.0) * exp(-1.25 * pow(omegaRatio, 4.0)) * pow(gamma, r);
 
-  float L = windSpeed * windSpeed / gravity;
-  float L2 = L * L;
+  float w_h = min(omega * sqrt(h / g), 2.0);
+  float kitaigorodskii_depth_attenuation = smoothstep(0, 2.2, w_h);
+  return S * kitaigorodskii_depth_attenuation;
+}
 
-  float damping = 0.005;
-  float l2 = L2 * damping * damping;
+/** Normalization factor approximation for Longuet-Higgins function. */
+float longuet_higgins_normalization(in float s)
+{
+  // Source: https://github.com/2Retr0/GodotOceanWaves
+  // Note: i forgot how i derived this :skull:
+  float a = sqrt(s);
+  return (s < 0.4) ? (0.5 / M_PI) + s * (0.220636 + s * (-0.109 + s * 0.090))
+                   : inversesqrt(M_PI) * (a * 0.5 + (1.0 / a) * 0.0625);
+}
 
-  return exp(-1.0 / (waveNumberLength2 * L2)) / waveNumberLength4 * waveDotWind2 *
-         exp(-waveNumberLength2 * l2);
+// Source: Christopher J. Horvath - Empirical Directional Wave Spectra for Computer Graphics
+float longuet_higgins_function(in float s, in float theta)
+{
+  return longuet_higgins_normalization(s) * pow(abs(cos(theta * 0.5)), 2.0 * s);
+}
+
+// Source: Christopher J. Horvath - Empirical Directional Wave Spectra for Computer Graphics
+float hasselmann_directional_spread(in float w, in float w_p, in float wind_speed, in float theta)
+{
+  float p = w / w_p;
+  float s =
+      (w <= w_p)
+          ? 6.97 * pow(abs(p), 4.06)
+          : 9.77 * pow(abs(p), -2.33 - 1.45 * (wind_speed * w_p / g - 1.17)); // Shaping parameter
+  float s_xi = 16.0 * tanh(w_p / w) * swell * swell; // Shaping parameter w/ swell
+  return longuet_higgins_function(s + s_xi, theta);
+}
+
+// Source: https://www.shadertoy.com/view/Xt3cDn
+vec2 Hash(uvec2 x)
+{
+  uint h32 = x.y + 374761393U + x.x * 3266489917U;
+  h32 = 2246822519U * (h32 ^ (h32 >> 15));
+  h32 = 3266489917U * (h32 ^ (h32 >> 13));
+  uint n = h32 ^ (h32 >> 16);
+  uvec2 rz = uvec2(n, n * 48271U);
+  return vec2((rz.xy >> 1) & uvec2(0x7FFFFFFFU)) / float(0x7FFFFFFF);
+}
+
+// https://github.com/2Retr0/GodotOceanWaves/blob/main/assets/shaders/compute/spectrum_compute.glsl
+// Samples a 2D-bivariate normal distribution
+vec2 Gaussian(vec2 x)
+{
+  // Use Box-Muller transform to convert uniform distribution->normal distribution.
+  float r = sqrt(-2.0 * log(x.x));
+  float theta = 2.0 * M_PI * x.y;
+  return vec2(r * cos(theta), r * sin(theta));
+}
+
+vec2 GetSpectrumAmplitude(vec2 thread, vec2 dimensions)
+{
+  // Information about this thread's wave
+  float dk = 2.0 * M_PI / planeSize;
+  vec2 kVec = (thread - dimensions / 2.0) * dk;
+  float k = length(kVec); // Make sure that this isn't zero.
+  float theta = atan(kVec.y, kVec.x) - theta_0;
+
+  if (k == 0.0)
+    return vec2(0.0);
+
+  // Details used to calculate our wave's amplitude
+  float omega = Dispersion(k);
+  // float omega_p = 22 * pow(g * g / (U_10 * F), 0.333);
+
+  // Dimensionless and directional spread of our wave
+  float Sj = JonswapSpectrum(k, omega, omega_p);
+  float d = ((1.0 - spread) * hasselmann_directional_spread(omega, omega_p, U_10, theta) +
+             (spread) / (2.0 * M_PI)); // * exp(-(1.0 - detail)) * (1.0 - detail) * k * k);
+
+  // Chain used since we are integrating w.r.t dk_x and dk_y but our func is S(omega, theta)
+  float chain = DispersionDerivative(k) / k * dk * dk;
+
+  // Final amplitude calculation
+  vec2 amplitude = 0.1 * scale * Gaussian(Hash(uvec2(thread + seed))) * sqrt(2.0 * Sj * d * chain);
+  return amplitude;
 }
 
 void main()
 {
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 waveNumber = threadToWaveNumber(thread);
+  vec2 dimensions = vec2(imageSize(imgInput).xy);
 
-  float wavelength = length(2 * M_PI / waveNumber);
-  float inRange = max(1.0 - float(boundWavelength),
-                      step(wavelengthMin, wavelength) * step(wavelength, wavelengthMax));
+  // We store the signal for this wave, as well as the conjugate of the wave in the opposite
+  // direction to maintain the complex conjugate property.
+  vec4 outVec = vec4(GetSpectrumAmplitude(thread, dimensions),
+                     GetSpectrumAmplitude(dimensions - thread, dimensions));
 
-  // Fetch a random Gaussian value to model probability of wave existing
-  vec2 currentValue = imageLoad(imgInput, ivec2(thread)).xy;
+  // Get ourselves the complex conjugate.
+  outVec.w *= -1;
 
-  // Calculate and store the amplitude using the phillips spectrum
-  float globalScale = 0.5 / planeSize;
-  vec2 amp = inRange * globalScale * scale * currentValue *
-             sqrt(phillips(waveNumber, windVelocity, gravity));
-  imageStore(imgOutput0, ivec2(thread), vec4(amp, 0.0, 1.0));
+  // Store the output in our image.
+  imageStore(imgOutput0, ivec2(thread), outVec);
 }
 
 #section type(compute) name(prepareFFT)
@@ -103,24 +187,28 @@ void main()
 {
   // Get the thread that we are working with, and convert that to a usable wave number.
   vec2 thread = vec2(gl_GlobalInvocationID.xy);
-  vec2 waveNumber = threadToWaveNumber(thread);
-  vec2 waveDir = waveNumber == vec2(0.0) ? waveNumber : normalize(waveNumber);
+  vec2 dimensions = vec2(imageSize(imgInput).xy);
+
+  float dk = 2.0 * M_PI / planeSize;
+  vec2 kVec = (thread - dimensions / 2.0) * dk;
+  vec2 kDir = (kVec == vec2(0.0) ? vec2(0.0) : normalize(kVec));
+  float k = length(kVec) + 1e-6; // Make sure that this isn't zero.
 
   // Get the amplitude of our current wave, and propogate it through space at the rate determined by
-  // the dispersion relation.
-  vec2 amplitude = imageLoad(imgInput, ivec2(thread)).xy;
-  float phase = dispersion(waveNumber, gravity) * time;
+  vec4 amplitudes = imageLoad(imgInput, ivec2(thread)); // xy = This wave, zw = Opposite's conjugate
+  vec2 amplitude = amplitudes.xy;
+
+  // Use the dispersion relation.
+  float phase = Dispersion(k) * time;
 
   // Propogate using eulers formula.
   vec2 wave = vec2(cos(phase), sin(phase));
-  amplitude = complexMultiply(amplitude, wave);
+  amplitude = ComplexMultiply(amplitude, wave);
 
   // The opposite wave will be sending out its conjugate wave this direction.
-  vec2 oppAmplitude = imageLoad(imgInput, ivec2(SIZE - thread)).xy;
-  oppAmplitude = complexMultiply(oppAmplitude, wave);
-
-  // Make this a conjugate wave.
-  oppAmplitude.y *= -1.0;
+  vec2 oppAmplitude = amplitudes.zw;
+  wave.y *= -1.0;
+  oppAmplitude = ComplexMultiply(oppAmplitude, wave);
 
   // The total spatial amplitude is the sum of the amplitude and the opposite amplitude.
   vec2 heightAmp = amplitude + oppAmplitude;
@@ -130,27 +218,27 @@ void main()
   // derivatives which are important for lighting. First, we take the partials of the heightmap
   // w.r.t x and z so that we can calculate normals. Thankfully, all we have to do it take each wave
   // and multiply by i and the component of the wave number in each direction.
-  vec2 dhdx = waveNumber.x * vec2(-heightAmp.y, heightAmp.x);
-  vec2 dhdz = waveNumber.y * vec2(-heightAmp.y, heightAmp.x);
+  vec2 dhdx = kVec.x * vec2(-heightAmp.y, heightAmp.x);
+  vec2 dhdz = kVec.y * vec2(-heightAmp.y, heightAmp.x);
 
   // The next few are the displacement, which are difficult to calculate. We need the displacement
   // vectors for both the x and z coordinates, as well as the partial derivatives of this w.r.t x
   // and z for calculating the jacobian of the matrix (detect local inversion to spawn foam). The
   // displacement is basically in the same direction as the derivative, so that we push the steep
   // parts toward their peaks.
-  vec2 disX = waveDir.x * heightAmpTimesi;
-  vec2 disZ = waveDir.y * heightAmpTimesi;
+  vec2 disX = kDir.x * heightAmpTimesi;
+  vec2 disZ = kDir.y * heightAmpTimesi;
 
   // We use algebra for these, and it happens to work out so that we just multiply the amplitudes by
   // the directions with one of them being normalized.
-  vec2 dDXdx = -waveNumber.x * waveDir.x * heightAmp;
-  vec2 dDZdz = -waveNumber.y * waveDir.y * heightAmp;
-  vec2 dDXdz = -waveNumber.y * waveDir.x * heightAmp;
+  vec2 dDXdx = -kVec.x * kDir.x * heightAmp;
+  vec2 dDZdz = -kVec.y * kDir.y * heightAmp;
+  vec2 dDXdz = -kVec.y * kDir.x * heightAmp;
 
   // Now, we have to combine our FFTs into a the image. We multiply the second FFT by i to pack.
   vec4 output0 = vec4(heightAmp.x - dhdx.y, heightAmp.y + dhdx.x, dhdz.x - disX.y, dhdz.y + disX.x);
   vec4 output1 = vec4(disZ.x - dDXdx.y, disZ.y + dDXdx.x, dDZdz.x - dDXdz.y, dDZdz.y + dDXdz.x);
-  imageStore(imgOutput0, ivec2(thread), output0);
+  imageStore(imgOutput0, ivec2(thread), vec4(output0));
   imageStore(imgOutput1, ivec2(thread), output1);
 }
 
@@ -170,16 +258,6 @@ void main()
 
   float jacobian = (1.0 + displacement * dDxdx) * (1.0 + displacement * dDzdz) -
                    displacement * displacement * dDxdz * dDxdz;
-  float current = imageLoad(jacobianTexture, ivec2(thread)).r;
 
-  // TODO: Don't hard code these values.
-  // current *= exp(-0.05);
-  current += 0.6 * max(0.7 - jacobian, 0.0);
-  current *= 0.95;
-  current = clamp(current, 0, 1);
-  // current = current + 0.004 * 0.5 / max(jacobian, 0.5);
-  // current = min(current, -0.05 + jacobian);
-  // // current *= 0.995;
-
-  imageStore(jacobianTexture, ivec2(thread), vec4(current));
+  imageStore(jacobianTexture, ivec2(thread), vec4(jacobian));
 }

@@ -21,14 +21,14 @@ WaveApp::WaveApp()
   {
     // Create our generator and configure
     Generator* generator = new Generator(renderDevice, fftCalculator);
-    OceanSettings& settings = generator->GetOceanSettings();
+    GeneratorSettings& settings = generator->GetOceanSettings();
 
     // Set the size of the plane based on increasing prime sizes to prevent tiling.
-    static float primeFactors[] = {29.0, 61.0, 101.0};
+    static float primeFactors[] = {5.0, 17.0, 101.0};
     settings.planeSize = primeFactors[i];
 
     // Enable bound wavelength to prevent frequencies from adding themselves twice.
-    settings.boundWavelength = 0;
+    settings.boundWavelength = 1;
 
     // Each wavelength should be on the smallest plane that it fits on for the most detail.
     settings.wavelengthMax = settings.planeSize / 2.0;
@@ -91,7 +91,7 @@ void WaveApp::OnUpdate(float timestep)
     generator->CalculateOcean(timestep, updateSpectrum);
 
   // If we have updated our ocean spectrum, we don't need to again until it's changed.
-  updateSpectrum = false;
+  // updateSpectrum = false;
 
   // Then we do our the render pass
   waveRenderer->Render(generators);
@@ -123,48 +123,61 @@ void WaveApp::DrawUI()
   uiRenderer->Begin();
   if (ImGui::Begin("Control Panel"))
   {
-    // Performance Metrics
     if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen))
     {
-
       // Print the FPS and frame time
       ImGui::Text("FPS: %.1f", (1000.0f / weightedFrameTime));
       ImGui::Text("Frame Time: %.1fms", weightedFrameTime);
+
+      bool first = true;
+      for (auto& generator : generators)
+      {
+        if (!first)
+          ImGui::SameLine();
+        else
+          first = false;
+        ImGui::Image((ImTextureID)generator->GetHeightMap(), {100.0f, 100.0f});
+      }
     }
 
     // Simulation Settings
     if (ImGui::CollapsingHeader("Simulation"))
     {
-      OceanSettings& settings = generators[0]->GetOceanSettings();
-      OceanSettings& settings1 = generators[1]->GetOceanSettings();
-      OceanSettings& settings2 = generators[2]->GetOceanSettings();
+      int i = 0;
+      static const char* text[] = {"Sim 1", "Sim 2", "Sim 3"};
+      for (auto& generator : generators)
+      {
+        ImGui::PushID(i);
+        ImGui::TreePush(text[i]);
+        if (ImGui::CollapsingHeader(text[i]))
+        {
+          GeneratorSettings& settings = generator->GetOceanSettings();
 
-      // clang-format off
-      updateSpectrum |= ImGui::DragFloat2("Wind Velocity", &settings.windVelocity[0], 0.25f, 0.0f, 20.0f, "%.2f");
-      updateSpectrum |= ImGui::DragFloat("Gravity", &settings.gravity, 0.05f, 1.0f, 20.0f, "%.2f");
-      updateSpectrum |= ImGui::DragFloat("Scale", &settings.scale, 0.05f, 0.05f, 5.0f, "%.2f");
-      updateSpectrum |= ImGui::DragFloat("Displacement", &settings.displacement, 0.01f, 0.0f, 2.0f, "%.2f");
-
-      static const char* text[] = {"Plane 1", "Plane 2", "Plane 3"};
-      updateSpectrum |= ImGui::DragFloat(text[0], &settings.planeSize, 0.1f, 1.0f, settings1.planeSize, "%.1f");
-      updateSpectrum |= ImGui::DragFloat(text[1], &settings1.planeSize, 1.f, settings.planeSize, settings2.planeSize, "%.0f");
-      updateSpectrum |= ImGui::DragFloat(text[2], &settings2.planeSize, 5.0f, settings1.planeSize, 500.0f, "%.0f");
-      // clang-format on
+          bool us = updateSpectrum;
+          us |= ImGui::DragFloat("Wind Speed", &settings.U_10, 0.25f, 1.0f, 100.0f, "%.2f");
+          us |= ImGui::DragFloat("Wind Angle", &settings.theta_0, 0.5f, -180.0f, 180.0f, "%.1f");
+          us |= ImGui::DragFloat("Gravity", &settings.g, 0.05f, 1.0f, 20.0f, "%.2f");
+          us |= ImGui::DragFloat("Scale", &settings.scale, 0.05f, 0.00f, 5.0f, "%.2f");
+          us |= ImGui::DragFloat("Displacement", &settings.displacement, 0.01f, 0.0f, 2.0f, "%.2f");
+          us |= ImGui::DragFloat("Swell", &settings.swell, 0.005f, 0.0f, 1.0f);
+          us |= ImGui::DragFloat("Spread", &settings.spread, 0.01f, 0.0f, 1.0f);
+          us |= ImGui::DragFloat("Depth", &settings.h, 0.5f, 15.0f, 500.0f);
+          us |= ImGui::DragFloat("Fetch", &settings.F, 1000.0f, 1000.0f, 1000000.0f);
+          us |= ImGui::DragFloat("Detail", &settings.detail, 0.005f, 0.0f, 1.0f);
+          us |= ImGui::DragFloat("Peak Omega", &settings.omega_p, 0.001f, 0.00001f, 10.0f);
+          us |= ImGui::DragFloat("Size", &settings.planeSize, 0.5f, 1.0f, 200.0f, "%.1f");
+          updateSpectrum = us;
+        }
+        ImGui::TreePop();
+        ImGui::PopID();
+        i++;
+      }
 
       if (updateSpectrum)
       {
-        for (auto& generator : generators)
-        {
-          OceanSettings& toChange = generator->GetOceanSettings();
-          toChange.windVelocity = settings.windVelocity;
-          toChange.gravity = settings.gravity;
-          toChange.scale = settings.scale;
-          toChange.displacement = settings.displacement;
-        }
-
         for (int i = 0; i < waveRenderer->GetNumRequiredGenerators(); i++)
         {
-          OceanSettings& settings = generators[i]->GetOceanSettings();
+          GeneratorSettings& settings = generators[i]->GetOceanSettings();
 
           // Each wavelength should be on the smallest plane that it fits on for the most detail.
           settings.wavelengthMax = settings.planeSize / 2.0;

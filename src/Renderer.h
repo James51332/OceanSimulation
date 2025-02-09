@@ -16,20 +16,19 @@ struct WaveRenderData
 {
   // Simulation Data
   glm::vec4 planeSize = glm::vec4(0.0f); // The size of the three planes that make up our water
-  float displacementScale = 1.0f;        // The scale of the displacment of the water
-  float dDummy1, dDummy2, dDummy3;       // Align to 16 byte data before switching data types
+  glm::vec4 displacementScale = glm::vec4(0.0f); // The displacement scale for each plane.
 
   // Rendering Data
-  glm::vec4 waveColor = glm::vec4(1.0f);                  // The color of the wave
-  glm::vec4 scatterColor = glm::vec4(1.0f);               // Scatter color of the water
-  glm::vec4 skyColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f); // Color of the sky
-  glm::vec4 sunColor = glm::vec4(1.0f);                   // Color of sun and horizon
-  glm::vec3 lightDirection = glm::vec3(0.0f, 1.0f, 0.0f); // Direction towards the sun
-  float sunViewAngle = 2.0f;                              // The angle of the sun in the sky
-  float sunFalloffAngle = 0.0f;                           // The angle between hard edge and sky
-  float fogBegin = 30.0f;                                 // Where the fog begins
-  float cameraNear = 20.0f;                               // The near camera clipping plane
-  float cameraFar = 50.0f;                                // The far camera clipping plane
+  glm::vec4 waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f); // The color of the wave
+  glm::vec4 scatterColor = glm::vec4(0.5f, .8f, .9f, 1.0f);  // Scatter color of the water
+  glm::vec4 skyColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);  // Color of the sky
+  glm::vec4 sunColor = glm::vec4(1.0f);                      // Color of sun and horizon
+  glm::vec3 lightDirection = glm::vec3(.703f, .105f, .703f); // Direction towards the sun
+  float sunViewAngle = 3.0f;                                 // The angle of the sun in the sky
+  float sunFalloffAngle = 1.0f;                              // The angle between hard edge and sky
+  float fogBegin = 30.0f;                                    // Where the fog begins
+  float cameraNear = 20.0f;                                  // The near camera clipping plane
+  float cameraFar = 50.0f;                                   // The far camera clipping plane
 };
 
 class WaveRenderer

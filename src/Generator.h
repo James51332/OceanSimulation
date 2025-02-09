@@ -9,18 +9,27 @@
 namespace Waves
 {
 
-struct OceanSettings
+struct GeneratorSettings
 {
-  float time = 0.0f;
-  float planeSize = 20.0f;
-  float gravity = 9.8f;
-  float scale = 1.0;
-  glm::vec2 windVelocity = glm::vec2(8.0f, 5.0f);
-  float wavelengthMin = 0.0f;
-  float wavelengthMax = 0.0f;
-  float displacement = 1.0f;
-  int boundWavelength = 0;
-  float dummy1, dummy2;
+  glm::ivec2 seed = glm::ivec2(12342, 8934); // The seed for random generation.
+
+  float U_10 = 40.0f;         // The speed of the wind.
+  float theta_0 = 25.0f;      // The CCW direction of the wind rel. to +x-axis.
+  float F = 800000.0f;        // The distance to a downwind shore (fetch).
+  float g = 9.8f;             // The acceleration due to gravity.
+  float swell = 0.5f;         // The factor of non-wind based waves.
+  float h = 100.0f;           // The depth of the ocean.
+  float displacement = 0.4f;  // The scalar used in displacing the vertices.
+  float time = 0.0f;          // The time in seconds since the program began.
+  float planeSize = 40.0f;    // The size of the plane in meters that this plane is simulating.
+  float omega_p = 0.1f;       // The angular frequency of highest energy waves.
+  float scale = 1.0f;         // The global heightmap scalar.
+  float spread = 0.2f;        // The intensity of waves perp. to wind.
+  float detail = 0.7f;        // The intensity of high frequency waves.
+  int boundWavelength = 0;    // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
+  float wavelengthMin = 0.0f; // The minimum wavelength that is allowed
+  float wavelengthMax = 0.0f; // The maximum wavelength that is allowed
+  float d1, d2;
 };
 
 // Manages the compute shaders for our wave generation
@@ -32,7 +41,7 @@ public:
 
   // Access the settings behind this ocean. If the spectrum is modified, then the next call to
   // calculate ocean should set updateOcean to true.
-  OceanSettings& GetOceanSettings() { return oceanSettings; }
+  GeneratorSettings& GetOceanSettings() { return oceanSettings; }
 
   // Perform the necessary FFTs to calculate the change the ocean given a timestep since the last
   // call.
@@ -64,7 +73,7 @@ private:
 
   // Store the settings for our ocean.
   bool updateSpectrum = true;
-  OceanSettings oceanSettings;
+  GeneratorSettings oceanSettings;
   Vision::ID oceanUBO = 0;
 
   // h, dh/dx, dh/dz, Dx

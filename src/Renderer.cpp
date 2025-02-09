@@ -61,15 +61,17 @@ void WaveRenderer::Render(std::vector<Generator*>& generators)
   // Let the GPU know how to access the proper textures
   for (int i = 0; i < generators.size(); i++)
   {
+    // Set the necessary textures.
     renderDevice->BindTexture2D(generators[i]->GetHeightMap(), i);
     renderDevice->BindTexture2D(generators[i]->GetDisplacementMap(), i + 3);
     renderDevice->BindTexture2D(generators[i]->GetJacobianMap(), i + 6);
+
     // Update our ocean buffer data.
     wavesBufferData.planeSize[i] = generators[i]->GetOceanSettings().planeSize;
+    wavesBufferData.displacementScale[i] = generators[i]->GetOceanSettings().displacement;
   }
 
-  // Set the camera clipping planes and displacement scale.
-  wavesBufferData.displacementScale = generators[0]->GetOceanSettings().displacement;
+  // Set the camera clipping planes.
   wavesBufferData.cameraNear = camera->GetNear();
   wavesBufferData.cameraFar = camera->GetFar();
 
@@ -234,15 +236,6 @@ void WaveRenderer::GeneratePipelines()
 
 void WaveRenderer::GenerateBuffers()
 {
-  // Fill our wave buffer in with meaningful data.
-  wavesBufferData.skyColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
-  wavesBufferData.scatterColor = glm::vec4(0.53f, 0.8f, 0.94f, 1.0f);
-  wavesBufferData.waveColor = glm::vec4(0.0f, 0.33f, 0.47f, 1.0f);
-  wavesBufferData.sunColor = glm::vec4(1.0f, 0.9f, 0.5f, 1.0f);
-  wavesBufferData.lightDirection = glm::normalize(glm::vec3(10.0f, 1.5f, 10.0f));
-  wavesBufferData.sunViewAngle = 2.0f;
-  wavesBufferData.sunFalloffAngle = 2.0f;
-
   Vision::BufferDesc bufferDesc;
   bufferDesc.Type = Vision::BufferType::Uniform;
   bufferDesc.Usage = Vision::BufferUsage::Dynamic;

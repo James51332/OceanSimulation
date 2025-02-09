@@ -15,9 +15,8 @@ layout(std140, binding = 0) uniform rendererData
 layout(std140, binding = 1) uniform wavesData
 {
   // Simulation Data
-  vec4 planeSize;                       // The size of each simulation
-  float displacementScale;              // The scale of the displacment of the water
-  float disDummy1, diDummy2, disDummy3; // Align to 16 byte data before switching data types.
+  vec4 planeSize;         // The size of each simulation
+  vec4 displacementScale; // The scale of each simulation's displacement
 
   // Rendering Data
   vec4 waveColor;        // The color of the water
@@ -77,36 +76,37 @@ void main()
   // distances to transform our plane into a plane with a roughly constant eye-space density.
   vec3 pos = a_Pos + vec3(15.0, 0.0, 15.0);
 
+  // This is a funky approach to rotate the plane around the camera. As long as our FOV is less than
+  // 90 degrees, we are good. However, this is pretty performance intensive and takes around 2ms on
+  // my GPU. Ideally, we could use tesselation; however, I like this approach since it works on
+  // metal. If we wanted to get really fancy, we could create a second camera matrix without this
+  // y-axis rotation, and apply the transform on the CPU at startup.
   vec3 forward = -viewInverse[0].xyz;
-  vec2 horizontalAngle = normalize(forward.xz);
-
+  vec2 turnDir = normalize(forward.xz);
   float sqrtHalf = 0.70711;
-  horizontalAngle =
-      vec2(horizontalAngle.x - horizontalAngle.y, horizontalAngle.x + horizontalAngle.y);
-  horizontalAngle *= sqrtHalf;
-
-  pos.xz = vec2(horizontalAngle.x * pos.x - horizontalAngle.y * pos.z,
-                pos.x * horizontalAngle.y + pos.z * horizontalAngle.x);
+  turnDir = vec2(turnDir.x - turnDir.y, turnDir.x + turnDir.y);
+  turnDir *= sqrtHalf;
+  pos.xz = vec2(turnDir.x * pos.x - turnDir.y * pos.z, pos.x * turnDir.y + pos.z * turnDir.x);
 
   // Scale and shift based on the position of the camera.
   vec3 cameraPos = viewInverse[3].xyz;
 
   // We scale based on the depth to the camera.
-  pos.xz *= pow(max(length(pos.xz), 1.0), 1.2) * 0.4;
+  pos.xz *= pow(max(length(pos.xz), 1.0), 1.2) * max(cameraPos.y, 10.0) * 0.04;
 
   // Center around the camera.
   pos.xz += cameraPos.xz;
 
   // Now we can continue as before.
-  for (int i = 0; i < 1; i++)
+  for (int i = 0; i < 3; i++)
   {
     vec2 uv = pos.xz / planeSize[i];
     vec4 data1 = texture(heightMap[i], uv);
     vec4 data2 = texture(displacementMap[i], uv);
 
-    pos.x += displacementScale * data1.w;
+    pos.x += displacementScale[i] * data1.w;
     pos.y += data1.x;
-    pos.z += displacementScale * data2.x;
+    pos.z += displacementScale[i] * data2.x;
   }
   gl_Position = viewProjection * vec4(pos, 1.0);
 
@@ -124,24 +124,24 @@ out vec4 FragColor;
 void main()
 {
   // We calculate the slope of the wave surface at each point to get normal vectors for lighting.
-  vec3 slope = vec3(0.0);
-  vec4 jacobian = vec4(0.0);
-  for (int i = 0; i < 1; i++)
+  vec4 d = vec4(0.0);
+  float jacobian = 0.0;
+  for (int i = 0; i < 3; i++)
   {
     vec2 uv = v_WorldPos.xz / planeSize[i];
     vec4 data1 = texture(heightMap[i], uv);
+    vec4 data2 = texture(displacementMap[i], uv);
 
-    // The partials are stored in 2nd and 3rd components
-    slope.xz += data1.yz;
+    jacobian += texture(jacobianMap[i], uv).r / 3.0;
 
-    // Compute the jacobian as well.
-    jacobian += vec4(texture(jacobianMap[i], uv).r);
+    // The math for this is whacky.
+    float f = displacementScale[i];
+    d += vec4(data1.y, data2.y * f, data1.z, data2.z * f);
   }
 
-  // Calculate our normal vector by crossing the binormal and tangent vector.
-  vec3 binormal = vec3(1.0, slope.x, 0.0);
-  vec3 tangent = vec3(0.0, slope.z, 1.0);
-  vec3 normal = normalize(cross(tangent, binormal));
+  // Calculate our normal vector by black magic.
+  vec2 slope = vec2(d.x / (1 + d.y), d.z / (1 + d.w));
+  vec3 normal = normalize(vec3(-slope.x, 1, -slope.y));
 
   // Calculate the lighting information. This depends on the direction of the light (diffuse), the
   // direction of the camera (specular), and an ambient constant.
@@ -157,14 +157,8 @@ void main()
   float light = diffuse + ambient + specular;
 
   // The color is the product of the light intensity, color at the surface, reflection color.
-  vec4 foamColor = vec4(0.85, 0.85, 0.85, 1.0);
-  float foamThreshold = 0.3;
-  // jacobian.r = jacobian.r * step(foamThreshold, jacobian.r);
-  jacobian.r = pow(jacobian.r * 1.2, 1.3);
-  vec4 colorWave = mix(waveColor, foamColor, jacobian.r);
-  vec3 color = light * colorWave.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
-
-  // color = vec3(jacobian.r);
+  vec4 colorWave = mix(waveColor, vec4(0.9, 0.9, 0.9, 1.0), clamp(0.5 - jacobian.r, 0.0, 1.0));
+  vec3 color = light * waveColor.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
 
   FragColor = vec4(color, 1.0);
 }
@@ -234,7 +228,7 @@ void main()
   float linearDepth = (2.0 * near * far) / (far + near - ndc * (far - near));
 
   // We cull the fog if it is closer than the starting point.
-  float fogDensity = 0.0015;
+  float fogDensity = 0.0025;
   float fogFactor = max(1.0 - exp(-(linearDepth - fogBegin) * fogDensity), 0.0);
   FragColor = vec4(mix(color, texture(skyboxColor, v_UV), fogFactor).rgb, 1.0);
 }
