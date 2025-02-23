@@ -9,24 +9,21 @@ layout(rgba32f, binding = 2) uniform writeonly image2D imgOutput1;
 
 layout(std140, binding = 0) uniform spectrumSettings
 {
-  ivec2 seed;         // The seed for random generation.
-  float U_10;         // The speed of the wind.
-  float theta_0;      // The CCW direction of the wind rel. to +x-axis.
-  float F;            // The distance to a downwind shore (fetch).
-  float g;            // The acceleration due to gravity.
-  float swell;        // The factor of non-wind based waves.
-  float h;            // The depth of the ocean.
-  float displacement; // The scalar used in displacing the vertices.
-  float time;         // The time in seconds since the program began.
-  float planeSize;    // The size of the plane in meters that this plane is simulating.
-  float omega_p;
-  float scale;  // The global heightmap scalar.
-  float spread; // The spread of direction of waves.
-  float detail;
+  ivec2 seed;          // The seed for random generation.
+  float U_10;          // The speed of the wind.
+  float theta_0;       // The CCW direction of the wind rel. to +x-axis.
+  float F;             // The distance to a downwind shore (fetch).
+  float g;             // The acceleration due to gravity.
+  float swell;         // The factor of non-wind based waves.
+  float h;             // The depth of the ocean.
+  float displacement;  // The scalar used in displacing the vertices.
+  float time;          // The time in seconds since the program began.
+  float planeSize;     // The size of the plane in meters that this plane is simulating.
+  float scale;         // The global heightmap scalar.
+  float spread;        // The spread of direction of waves.
   int boundWavelength; // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
   float wavelengthMin; // The minimum wavelength that is allowed
   float wavelengthMax; // The maximum wavelength that is allowed
-  float d1, d2, d3;
 };
 
 vec2 ComplexMultiply(vec2 lhs, vec2 rhs)
@@ -142,12 +139,12 @@ vec2 GetSpectrumAmplitude(vec2 thread, vec2 dimensions)
 
   // Details used to calculate our wave's amplitude
   float omega = Dispersion(k);
-  // float omega_p = 22 * pow(g * g / (U_10 * F), 0.333);
+  float omega_p = 22 * pow(g * g / (U_10 * F), 0.333);
 
   // Dimensionless and directional spread of our wave
   float Sj = JonswapSpectrum(k, omega, omega_p);
   float d = ((1.0 - spread) * hasselmann_directional_spread(omega, omega_p, U_10, theta) +
-             (spread) / (2.0 * M_PI)); // * exp(-(1.0 - detail)) * (1.0 - detail) * k * k);
+             (spread) / (2.0 * M_PI)); // * exp(-(1.0 - detail)) * (1.0 - detail) * k * k;
 
   // Chain used since we are integrating w.r.t dk_x and dk_y but our func is S(omega, theta)
   float chain = DispersionDerivative(k) / k * dk * dk;

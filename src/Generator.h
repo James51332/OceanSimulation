@@ -22,14 +22,11 @@ struct GeneratorSettings
   float displacement = 0.4f;  // The scalar used in displacing the vertices.
   float time = 0.0f;          // The time in seconds since the program began.
   float planeSize = 40.0f;    // The size of the plane in meters that this plane is simulating.
-  float omega_p = 0.1f;       // The angular frequency of highest energy waves.
   float scale = 1.0f;         // The global heightmap scalar.
   float spread = 0.2f;        // The intensity of waves perp. to wind.
-  float detail = 0.7f;        // The intensity of high frequency waves.
   int boundWavelength = 0;    // Whether or not we bound the wavelength (1 = bound, 0 = unbound)
   float wavelengthMin = 0.0f; // The minimum wavelength that is allowed
   float wavelengthMax = 0.0f; // The maximum wavelength that is allowed
-  float d1, d2;
 };
 
 // Manages the compute shaders for our wave generation

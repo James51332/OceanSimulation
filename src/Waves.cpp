@@ -120,8 +120,31 @@ void WaveApp::DrawUI()
   // Update the last frame time
   lastTicks = curTicks;
 
+  // Handle this outside of window so it works when closed or hidden.
+  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
+    waveRenderer->ToggleWireframe();
+
+  // Toggle the UI if we don't want to show it.
+  static bool showUI = true;
+  static bool toggled = false;
+  if (Vision::Input::KeyDown(SDL_SCANCODE_LCTRL) && Vision::Input::KeyDown(SDL_SCANCODE_H))
+  {
+    // Only toggle once until we let go of one of the keys.
+    if (!toggled)
+      showUI = !showUI;
+
+    toggled = true;
+  }
+  else
+  {
+    toggled = false;
+  }
+
+  if (!showUI)
+    return;
+
   uiRenderer->Begin();
-  if (ImGui::Begin("Control Panel"))
+  if (ImGui::Begin("Control Panel (L Ctrl + H to toggle)"))
   {
     if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen))
     {
@@ -163,8 +186,6 @@ void WaveApp::DrawUI()
           us |= ImGui::DragFloat("Spread", &settings.spread, 0.01f, 0.0f, 1.0f);
           us |= ImGui::DragFloat("Depth", &settings.h, 0.5f, 15.0f, 500.0f);
           us |= ImGui::DragFloat("Fetch", &settings.F, 1000.0f, 1000.0f, 1000000.0f);
-          us |= ImGui::DragFloat("Detail", &settings.detail, 0.005f, 0.0f, 1.0f);
-          us |= ImGui::DragFloat("Peak Omega", &settings.omega_p, 0.001f, 0.00001f, 10.0f);
           us |= ImGui::DragFloat("Size", &settings.planeSize, 0.5f, 1.0f, 200.0f, "%.1f");
           updateSpectrum = us;
         }
@@ -208,10 +229,6 @@ void WaveApp::DrawUI()
   }
   ImGui::End();
   uiRenderer->End();
-
-  // Handle this outside of window so it works when closed.
-  if (Vision::Input::KeyPress(SDL_SCANCODE_T))
-    waveRenderer->ToggleWireframe();
 }
 
 void WaveApp::OnResize(float width, float height)

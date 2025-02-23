@@ -157,7 +157,6 @@ void main()
   float light = diffuse + ambient + specular;
 
   // The color is the product of the light intensity, color at the surface, reflection color.
-  vec4 colorWave = mix(waveColor, vec4(0.9, 0.9, 0.9, 1.0), clamp(0.5 - jacobian.r, 0.0, 1.0));
   vec3 color = light * waveColor.rgb * SampleSkybox(reflectionDir).rgb + scatter * scatterColor.rgb;
 
   FragColor = vec4(color, 1.0);
@@ -230,5 +229,6 @@ void main()
   // We cull the fog if it is closer than the starting point.
   float fogDensity = 0.0025;
   float fogFactor = max(1.0 - exp(-(linearDepth - fogBegin) * fogDensity), 0.0);
+
   FragColor = vec4(mix(color, texture(skyboxColor, v_UV), fogFactor).rgb, 1.0);
 }
